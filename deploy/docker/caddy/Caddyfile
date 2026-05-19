@@ -1,0 +1,18 @@
+# CADDY_DOMAIN en el entorno del contenedor (docker-compose.https.yml).
+# Opcional: añadir al inicio un bloque global con email para avisos ACME, p. ej.:
+#   { email tu-correo@dominio.com }
+{$CADDY_DOMAIN} {
+	encode gzip
+
+	header {
+		X-Content-Type-Options nosniff
+		Referrer-Policy strict-origin-when-cross-origin
+		X-Frame-Options SAMEORIGIN
+		Strict-Transport-Security "max-age=31536000"
+	}
+
+	reverse_proxy web:80 {
+		header_up X-Forwarded-Proto {http.request.scheme}
+		header_up X-Forwarded-Host {http.request.host}
+	}
+}

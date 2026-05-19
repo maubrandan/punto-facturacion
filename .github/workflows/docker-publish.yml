@@ -1,0 +1,51 @@
+# Construye y publica imágenes en ghcr.io (útil desde Debian: docker compose pull).
+name: Docker publish
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: pos-api
+            file: deploy/docker/api/Dockerfile
+          - name: pos-web
+            file: deploy/docker/web/Dockerfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Registry login
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Image name (lowercase)
+        id: meta
+        run: |
+          owner="${GITHUB_REPOSITORY,,}"
+          echo "image=${{ env.REGISTRY }}/${owner}-${{ matrix.name }}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.file }}
+          push: true
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}

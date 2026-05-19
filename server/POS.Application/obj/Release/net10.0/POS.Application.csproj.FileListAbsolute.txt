@@ -1,0 +1,15 @@
+c:\proj\punto-facturacion\server\POS.Application\bin\Release\net10.0\POS.Application.deps.json
+c:\proj\punto-facturacion\server\POS.Application\bin\Release\net10.0\POS.Application.dll
+c:\proj\punto-facturacion\server\POS.Application\bin\Release\net10.0\POS.Application.pdb
+c:\proj\punto-facturacion\server\POS.Application\bin\Release\net10.0\POS.Domain.dll
+c:\proj\punto-facturacion\server\POS.Application\bin\Release\net10.0\POS.Domain.pdb
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.csproj.AssemblyReference.cache
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.GeneratedMSBuildEditorConfig.editorconfig
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.AssemblyInfoInputs.cache
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.AssemblyInfo.cs
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.csproj.CoreCompileInputs.cache
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Appl.B41D5806.Up2Date
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.dll
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\refint\POS.Application.dll
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\POS.Application.pdb
+c:\proj\punto-facturacion\server\POS.Application\obj\Release\net10.0\ref\POS.Application.dll

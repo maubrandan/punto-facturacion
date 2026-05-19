@@ -1,0 +1,11 @@
+C:\proj\punto-facturacion\server\POS.Domain\bin\Debug\net10.0\POS.Domain.deps.json
+C:\proj\punto-facturacion\server\POS.Domain\bin\Debug\net10.0\POS.Domain.dll
+C:\proj\punto-facturacion\server\POS.Domain\bin\Debug\net10.0\POS.Domain.pdb
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.AssemblyInfoInputs.cache
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.AssemblyInfo.cs
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.csproj.CoreCompileInputs.cache
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.dll
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\refint\POS.Domain.dll
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\POS.Domain.pdb
+C:\proj\punto-facturacion\server\POS.Domain\obj\Debug\net10.0\ref\POS.Domain.dll

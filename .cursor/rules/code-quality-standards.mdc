@@ -1,0 +1,12 @@
+---
+description: Naming, tipado estricto, errores, API estándar
+alwaysApply: true
+---
+
+# Calidad y convenciones
+
+- **Stack**: backend **.NET 10**; frontend **Angular 21.2.7** (referencia única para el repo).
+- **Naming**: **PascalCase** en C#; **camelCase** en TypeScript y JSON.
+- **Tipado**: **strict** activado; **prohibido** `any` y `dynamic` (usar tipos concretos, `unknown` + narrowing, o genéricos).
+- **Errores**: backend con **manejo global de excepciones**; Angular con **ErrorInterceptor(s)** y mensajes coherentes con el backend.
+- **Contrato HTTP**: la API **siempre** devuelve la **misma forma** de respuesta (éxito/error/códigos); el front no debe adivinar formas distintas por recurso.

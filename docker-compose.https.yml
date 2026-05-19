@@ -1,0 +1,26 @@
+# HTTPS con Let's Encrypt (Caddy). Debian: abrir 80/443 en el firewall y DNS A → este servidor.
+# Uso: definir CADDY_DOMAIN en .env y ejecutar:
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+#
+# El front sigue en HTTP_PORT (p. ej. 8080) por si necesitas acceso directo; el tráfico público va por Caddy.
+services:
+  caddy:
+    image: caddy:2.9-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CADDY_DOMAIN: ${CADDY_DOMAIN:?definir CADDY_DOMAIN en .env (FQDN, ej. pos.midominio.com)}
+    volumes:
+      - ./deploy/docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      web:
+        condition: service_healthy
+
+volumes:
+  caddy-data:
+  caddy-config:

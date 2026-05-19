@@ -1,0 +1,63 @@
+# Despliegue en Debian sin clonar el repo para compilar: solo pull de imágenes (p. ej. GHCR).
+# Tras el workflow "Docker publish", copia este archivo y un .env al servidor y define:
+#   POS_API_IMAGE=ghcr.io/tu-org/tu-repo-pos-api:latest
+#   POS_WEB_IMAGE=ghcr.io/tu-org/tu-repo-pos-web:latest
+# Uso: docker compose -f docker-compose.pull.yml up -d
+services:
+  sql:
+    restart: unless-stopped
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "${SA_PASSWORD:?definir SA_PASSWORD en .env}"
+    volumes:
+      - sql-data:/var/opt/mssql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null || exit 1",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 15
+      start_period: 45s
+
+  api:
+    restart: unless-stopped
+    image: ${POS_API_IMAGE:?definir POS_API_IMAGE en .env}
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__DefaultConnection: "Server=sql;Database=PosFacturacion;User Id=sa;Password=${SA_PASSWORD};TrustServerCertificate=True;MultipleActiveResultSets=true"
+      Jwt__SigningKey: "${JWT_SIGNING_KEY:?definir JWT_SIGNING_KEY en .env (min. 32 caracteres)}"
+      Jwt__Issuer: "${JWT_ISSUER:-POS}"
+      Jwt__Audience: "${JWT_AUDIENCE:-pos-clients}"
+    depends_on:
+      sql:
+        condition: service_healthy
+    expose:
+      - "8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8080/health >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
+
+  web:
+    restart: unless-stopped
+    image: ${POS_WEB_IMAGE:?definir POS_WEB_IMAGE en .env}
+    ports:
+      - "${HTTP_LISTEN_ADDR:-0.0.0.0}:${HTTP_PORT:-8080}:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+      start_period: 20s
+
+volumes:
+  sql-data:

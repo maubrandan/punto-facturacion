@@ -1,0 +1,11 @@
+.git
+.github
+**/bin
+**/obj
+**/node_modules
+pos-frontend/dist
+**/.vs
+**/*.user
+**/IntegrationTests
+*.md
+!pos-frontend/**/*.md

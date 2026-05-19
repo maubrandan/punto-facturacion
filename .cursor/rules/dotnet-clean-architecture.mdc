@@ -1,0 +1,22 @@
+---
+description: Backend .NET 10 — Clean Architecture, CQRS, multi-tenancy EF
+globs: server/**/*.cs
+alwaysApply: false
+---
+
+# Backend (.NET 10)
+
+- **Versión**: **.NET 10** en todo el backend (TFM, paquetes y documentación).
+- **Capas (estricto)**: `Domain` → `Application` → `Infrastructure` → `API`. Sin referencias invertidas; `Domain` sin dependencias de frameworks ni infraestructura.
+- **Dominio**: entidades con comportamiento, **Value Objects**, **Domain Events**. Cero dependencias externas en `Domain`.
+- **CQRS** con **MediatR**; comandos/consultas delgados en `Application`.
+- **Result pattern** para salidas de casos de uso/servicios de aplicación (éxito/error tipado), no devolver estados ambiguos con `null` silencioso donde el contrato exige error explícito.
+- **Validación**: **FluentValidation** en `Application` (entrada de comandos/DTOs).
+- **Datos**: **EF Core** con **Global Query Filters** para multi-tenancy (`TenantId`) y configuración explícita en `Infrastructure`.
+- **Errores**: manejo global de excepciones en la API; respuestas coherentes con el formato estándar del proyecto.
+- **API**: respuestas **siempre** con la **estructura estandarizada** acordada (envelope/DTO común); no devolver formas distintas por endpoint salvo convención documentada.
+
+```csharp
+// ❌ Referencia desde Domain a EF o HttpClient
+// ✅ Domain puro; Infrastructure implementa repositorios y DbContext
+```

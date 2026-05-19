@@ -1,0 +1,20 @@
+---
+description: Angular 21.2.7 — Signals, standalone, Tailwind, features
+globs: pos-frontend/**/*.{ts,html,css}
+alwaysApply: false
+---
+
+# Frontend (Angular 21.2.7)
+
+- **Versión**: **Angular 21.2.7** en todo el frontend (`package.json`, CLI y código).
+- **Reactividad**: **Signals** obligatorios para estado UI y derivado. **Prohibido RxJS** salvo **HTTP** (`HttpClient`) o flujos que de verdad sean streams (SSE/WebSocket); no usar `Observable` para estado local.
+- **Plantillas**: control de flujo nuevo — `@if`, `@for`, `@switch` (no `*ngIf`/`*ngFor` legacy salvo migración puntual).
+- **Componentes**: **standalone** siempre; imports explícitos.
+- **Estilos**: **Tailwind** utility-first con tokens/clases consistentes (espaciado, tipografía, color); evitar CSS suelto que compita con el sistema.
+- **Estructura**: carpetas por **feature** (p. ej. `features/inventory`, `features/pos`). Separar **presentacionales (dumb)** — entradas `input()`/outputs — de **contenedores (smart)** — orquestación, llamadas HTTP, signals de página.
+- **Errores**: usar **interceptors HTTP** para errores globales alineados con la API estándar.
+
+```typescript
+// ❌ BehaviorSubject para estado de pantalla
+// ✅ signal / computed para estado y derivados
+```

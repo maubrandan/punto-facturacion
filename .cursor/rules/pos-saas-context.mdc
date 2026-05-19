@@ -1,0 +1,10 @@
+---
+description: Contexto POS SaaS multi-tenant y Strategy por rubro
+alwaysApply: true
+---
+
+# POS SaaS — contexto
+
+- Sistema **POS SaaS multi-rubro**: todo diseño de datos y APIs debe contemplar **aislamiento por `TenantId`** (ningún acceso cruzado entre tenants).
+- **Multi-tenancy**: filtros/consultas y persistencia siempre acotadas al tenant actual; revisar índices y unicidad **por tenant** donde aplique.
+- **Strategy**: la lógica que **cambia por rubro** (p. ej. Farmacia, Ferretería, Kiosco) va en **implementaciones intercambiables** (Strategy), no en `if/else` gigantes en un solo servicio. Registrar y resolver por rubro/tenant según el modelo de dominio.
