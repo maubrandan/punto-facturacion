@@ -1,0 +1,127 @@
+:host {
+  display: none;
+  box-sizing: border-box;
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+@media print {
+  :host {
+    display: block;
+  }
+
+  @page {
+    size: 80mm auto;
+    margin: 2mm 4mm;
+  }
+
+  .ticket {
+    width: 100%;
+    max-width: 72mm;
+    margin: 0 auto;
+    font-family: ui-monospace, 'Cascadia Code', 'Consolas', 'Liberation Mono', monospace;
+    font-size: 10pt;
+    line-height: 1.35;
+    color: #000;
+    background: #fff;
+  }
+
+  .ticket-logo {
+    text-align: center;
+    font-size: 12pt;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    border-bottom: 1px dashed #000;
+    padding-bottom: 6pt;
+    margin-bottom: 8pt;
+  }
+
+  .ticket-sub {
+    text-align: center;
+    font-size: 8pt;
+    color: #333;
+    margin-bottom: 8pt;
+  }
+
+  .ticket-row {
+    display: flex;
+    justify-content: space-between;
+    gap: 6pt;
+    font-size: 8pt;
+    margin-bottom: 2pt;
+  }
+
+  .ticket-row-val {
+    text-align: right;
+    flex-shrink: 0;
+    max-width: 75%;
+  }
+
+  .ticket-row-val--strong {
+    font-weight: 700;
+  }
+
+  .ticket-sep {
+    border: 0;
+    border-top: 1px dashed #000;
+    margin: 6pt 0;
+  }
+
+  .ticket-items {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 8pt;
+    table-layout: fixed;
+  }
+
+  .ticket-items th,
+  .ticket-items td {
+    padding: 2pt 0;
+    vertical-align: top;
+    border-bottom: 1px dotted #999;
+  }
+
+  .ticket-items th {
+    text-align: left;
+    font-weight: 600;
+  }
+
+  .ticket-items .col-n {
+    width: 2.5ch;
+    text-align: right;
+  }
+
+  .ticket-items .col-total {
+    text-align: right;
+    width: 14ch;
+  }
+
+  .ticket-totals {
+    margin-top: 8pt;
+    font-size: 8pt;
+  }
+
+  .ticket-totals .line {
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .ticket-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    margin-top: 8pt;
+    padding: 6pt 0 4pt;
+    border: 2px solid #000;
+    font-size: 12pt;
+    font-weight: 800;
+  }
+
+  .ticket-footer {
+    text-align: center;
+    font-size: 7pt;
+    color: #444;
+    margin-top: 10pt;
+  }
+}

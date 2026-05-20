@@ -1,0 +1,244 @@
+@config "../tailwind.config.js";
+@import 'tailwindcss';
+
+@theme inline {
+  --color-primary: var(--color-primary-500);
+  --color-accent: var(--color-accent-500);
+
+  --color-primary-50: var(--app-primary-50);
+  --color-primary-100: var(--app-primary-100);
+  --color-primary-300: var(--app-primary-300);
+  --color-primary-400: var(--app-primary-400);
+  --color-primary-500: var(--app-primary-500);
+  --color-primary-700: var(--app-primary-700);
+  --color-accent-400: var(--app-accent-400);
+  --color-accent-500: var(--app-accent-500);
+
+  /* Backward-compatible aliases used across current components */
+  --color-brand-50: var(--color-primary-50);
+  --color-brand-100: var(--color-primary-100);
+  --color-brand-300: var(--color-primary-300);
+  --color-brand-400: var(--color-primary-400);
+  --color-brand-500: var(--color-primary-500);
+  --color-brand-700: var(--color-primary-700);
+}
+
+body {
+  /* Default theme: Kiosco (azul profundo) */
+  --app-primary-50: #eff6ff;
+  --app-primary-100: #dbeafe;
+  --app-primary-300: #93c5fd;
+  --app-primary-400: #60a5fa;
+  --app-primary-500: #1e3a8a;
+  --app-primary-700: #1e40af;
+  --app-accent-400: #facc15;
+  --app-accent-500: #eab308;
+  /* Alerta suave; el rubro lo elige el body (ThemeService) */
+  --app-alert-bg: color-mix(in srgb, #fb7185 14%, #0f172a);
+  --app-alert-border: color-mix(in srgb, #fb7185 42%, #334155);
+  --app-alert-text: #fecdd3;
+  --app-alert-muted: #f9a8b4;
+  --app-alert-title: #fda4af;
+}
+
+/* Farmacia: verde esmeralda */
+body.theme-farmacia,
+body.theme-pharmacy {
+  --app-primary-50: #ecfdf5;
+  --app-primary-100: #d1fae5;
+  --app-primary-300: #6ee7b7;
+  --app-primary-400: #34d399;
+  --app-primary-500: #10b981;
+  --app-primary-700: #047857;
+  --app-accent-400: #22d3ee;
+  --app-accent-500: #06b6d4;
+  --app-alert-bg: color-mix(in srgb, #f87171 15%, #022c22);
+  --app-alert-border: color-mix(in srgb, #f87171 40%, #065f46);
+  --app-alert-text: #fecaca;
+  --app-alert-muted: #f9a8a4;
+  --app-alert-title: #fb923c;
+}
+
+/* Ferreteria: naranja industrial */
+body.theme-ferreteria,
+body.theme-hardware {
+  --app-primary-50: #fff7ed;
+  --app-primary-100: #ffedd5;
+  --app-primary-300: #fdba74;
+  --app-primary-400: #fb923c;
+  --app-primary-500: #ea580c;
+  --app-primary-700: #9a3412;
+  --app-accent-400: #9ca3af;
+  --app-accent-500: #6b7280;
+  --app-alert-bg: color-mix(in srgb, #ef4444 12%, #1c1917);
+  --app-alert-border: color-mix(in srgb, #f97316 45%, #7c2d12);
+  --app-alert-text: #ffedd5;
+  --app-alert-muted: #fdba74;
+  --app-alert-title: #fb923c;
+}
+
+/* Kiosco: azul profundo */
+body.theme-kiosco,
+body.theme-kiosk {
+  --app-primary-50: #eff6ff;
+  --app-primary-100: #dbeafe;
+  --app-primary-300: #93c5fd;
+  --app-primary-400: #60a5fa;
+  --app-primary-500: #1e3a8a;
+  --app-primary-700: #1e40af;
+  --app-accent-400: #bfdbfe;
+  --app-accent-500: #93c5fd;
+  --app-alert-bg: color-mix(in srgb, #f87171 12%, #0f172a);
+  --app-alert-border: color-mix(in srgb, #fb7185 40%, #1e3a8a);
+  --app-alert-text: #fecdd3;
+  --app-alert-muted: #f9a8b4;
+  --app-alert-title: #fda4af;
+}
+
+@layer components {
+  .heading-brand {
+    @apply text-brand-300;
+  }
+
+  .card-header-accent {
+    @apply border-l-4 border-accent-500 pl-3;
+  }
+
+  .btn-primary {
+    @apply rounded-xl border border-brand-300/40 bg-brand-500 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:bg-brand-400 disabled:cursor-not-allowed disabled:opacity-70;
+  }
+
+  .btn-secondary {
+    @apply rounded-xl border border-slate-700 px-4 py-2 text-sm font-medium text-slate-200 transition hover:bg-slate-800 disabled:opacity-60;
+  }
+
+  .btn-secondary-sm {
+    @apply rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-200 transition hover:bg-slate-800 disabled:opacity-60;
+  }
+
+  .btn-sm {
+    @apply rounded-lg border border-slate-700 bg-slate-800/40 px-2.5 py-1 text-xs font-medium text-slate-300 transition-colors hover:bg-slate-700/70 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .card-dashboard {
+    @apply rounded-xl border border-slate-800 bg-slate-900/50 p-4 shadow-lg backdrop-blur-md;
+  }
+
+  .nav-link {
+    @apply rounded-lg px-4 py-2 text-slate-400 transition-all hover:bg-slate-800 hover:text-white;
+  }
+
+  .dashboard-nav-btn {
+    @apply inline-flex items-center rounded-xl border border-transparent px-4 py-2 text-sm font-medium text-slate-200 transition-colors hover:bg-slate-700/80 hover:text-slate-100 disabled:cursor-not-allowed disabled:opacity-60;
+  }
+
+  .dashboard-nav-btn--primary {
+    @apply border-brand-500/40 bg-brand-500/20 text-slate-100 hover:bg-brand-500/30;
+  }
+
+  .dashboard-nav-btn--secondary {
+    @apply border border-slate-700 bg-slate-800/60 text-slate-200 hover:bg-slate-700/80 hover:text-slate-100;
+  }
+
+  .dashboard-nav-btn--danger {
+    @apply border border-rose-700/70 bg-rose-900/30 text-rose-200 hover:bg-rose-800/45 hover:text-rose-100;
+  }
+
+  .input-brand {
+    @apply w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm outline-none transition focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20;
+  }
+
+  .ui-compact .card-dashboard {
+    @apply p-3;
+  }
+
+  .ui-compact .btn-primary,
+  .ui-compact .btn-secondary,
+  .ui-compact .dashboard-nav-btn {
+    @apply px-3 py-1.5 text-xs;
+  }
+
+  .ui-compact .btn-secondary-sm,
+  .ui-compact .btn-sm {
+    @apply px-2.5 py-1 text-xs;
+  }
+
+  .ui-compact .input-brand {
+    @apply px-3 py-2 text-xs;
+  }
+
+  .ui-compact table th,
+  .ui-compact table td {
+    @apply py-2;
+  }
+
+  /** Ultracompacto: se combina con .ui-compact (misma sección tiene ambas clases) */
+  section.min-h-screen.ui-ultra-compact {
+    padding: 0.5rem !important;
+  }
+
+  @media (width >= 40rem) {
+    section.min-h-screen.ui-ultra-compact {
+      padding: 0.75rem !important;
+    }
+  }
+
+  .ui-ultra-compact .mx-auto.grid {
+    @apply gap-2 lg:gap-2;
+  }
+
+  .ui-ultra-compact .space-y-3 > :not([hidden]) ~ :not([hidden]) {
+    @apply mt-2;
+  }
+
+  .ui-ultra-compact aside nav a {
+    @apply py-1.5 px-2 text-xs;
+  }
+
+  .ui-ultra-compact .card-dashboard {
+    @apply p-2;
+  }
+
+  .ui-ultra-compact .btn-primary,
+  .ui-ultra-compact .btn-secondary,
+  .ui-ultra-compact .dashboard-nav-btn {
+    @apply px-2.5 py-1 text-[11px];
+  }
+
+  .ui-ultra-compact .btn-secondary-sm,
+  .ui-ultra-compact .btn-sm {
+    @apply px-2 py-0.5 text-[11px];
+  }
+
+  .ui-ultra-compact .input-brand {
+    @apply px-2.5 py-1.5 text-[11px];
+  }
+
+  .ui-ultra-compact table th,
+  .ui-ultra-compact table td {
+    @apply py-1.5 px-2 text-[11px] leading-tight;
+  }
+
+  .ui-ultra-compact .card-header-accent {
+    @apply pl-2 border-l-2;
+  }
+}
+
+/* Impresión térmica 80mm: solo el ticket al imprimir (usa body.printing-thermal-ticket) */
+@media print {
+  body.printing-thermal-ticket * {
+    visibility: hidden;
+  }
+
+  body.printing-thermal-ticket .app-sale-ticket,
+  body.printing-thermal-ticket .app-sale-ticket * {
+    visibility: visible;
+  }
+
+  body.printing-thermal-ticket .app-sale-ticket {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 99999;
+  }
+}
