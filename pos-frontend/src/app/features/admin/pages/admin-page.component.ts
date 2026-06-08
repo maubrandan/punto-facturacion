@@ -68,11 +68,6 @@ import { AuthService } from '../../../core/services/auth.service';
           }
         </ul>
       </div>
-
-      <div class="rounded-xl border border-slate-700/60 bg-slate-900/30 px-4 py-3 text-xs text-slate-500">
-        La consola de <strong class="text-slate-400">plataforma</strong> (operadores externos) es un producto aparte y no se gestiona desde
-        esta app.
-      </div>
     </section>
   `
 })
