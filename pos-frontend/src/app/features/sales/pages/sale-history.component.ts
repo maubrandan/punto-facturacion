@@ -1,7 +1,14 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { httpResource } from '@angular/common/http';
-import { Component, computed, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
+import {
+  fiscalStatusLabel,
+  formatVoucher,
+  isFiscalAuthorized,
+  type FiscalDocumentView
+} from '../../../core/models/fiscal.model';
+import { FiscalService } from '../../../core/services/fiscal.service';
 import type { PagedSalesResult, SaleDetailView } from '../../../core/services/sale.service';
 import { SaleTicketComponent } from '../components/sale-ticket.component';
 
@@ -199,7 +206,93 @@ interface Envelope<T> {
               }
             </ul>
 
-            <app-sale-ticket #ticket [sale]="d" />
+            <section class="mt-6 border-t border-slate-800 pt-4">
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Comprobantes fiscales
+              </h3>
+              @if (d.fiscalDocuments?.length) {
+                <ul class="mt-2 space-y-2">
+                  @for (fd of d.fiscalDocuments; track fd.id) {
+                    <li class="rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs">
+                      <p class="font-medium text-slate-100">
+                        {{ fd.documentTypeLabel ?? 'Comprobante' }}
+                        · {{ fiscalStatusLabel(fd.status) }}
+                      </p>
+                      @if (isFiscalAuthorized(fd)) {
+                        <p class="mt-1 text-slate-400">
+                          {{ formatVoucher(fd) }} · CAE {{ fd.cae }}
+                        </p>
+                      } @else if (fd.lastErrorMessage) {
+                        <p class="mt-1 text-rose-300">{{ fd.lastErrorMessage }}</p>
+                        <button
+                          type="button"
+                          class="btn-secondary-sm mt-2"
+                          [disabled]="fiscalService.busy()"
+                          (click)="retryFiscal(fd.id)"
+                        >
+                          Reintentar
+                        </button>
+                      }
+                      @if (canCreditNote(fd, d)) {
+                        <button
+                          type="button"
+                          class="btn-secondary-sm mt-2 ml-0 block"
+                          [disabled]="fiscalService.busy()"
+                          (click)="issueCreditNote(fd, d)"
+                        >
+                          Nota de crédito total
+                        </button>
+                      }
+                    </li>
+                  }
+                </ul>
+              } @else if (fiscalProfileReady()) {
+                <div class="mt-2 space-y-2">
+                  <button
+                    type="button"
+                    class="btn-primary w-full text-sm"
+                    [disabled]="fiscalService.busy()"
+                    (click)="issueFacturaB(d.id)"
+                  >
+                    Emitir Factura B
+                  </button>
+                  <details class="text-sm">
+                    <summary class="cursor-pointer text-brand-300">Factura A</summary>
+                    <div class="mt-2 space-y-2">
+                      <input
+                        type="text"
+                        class="input-brand"
+                        placeholder="CUIT comprador"
+                        [value]="buyerTaxId()"
+                        (input)="buyerTaxId.set(($any($event.target)).value)"
+                      />
+                      <button
+                        type="button"
+                        class="btn-secondary w-full"
+                        [disabled]="fiscalService.busy()"
+                        (click)="issueFacturaA(d.id)"
+                      >
+                        Emitir Factura A
+                      </button>
+                    </div>
+                  </details>
+                </div>
+              } @else {
+                <p class="mt-2 text-xs text-slate-500">
+                  Sin comprobantes. Configure el perfil en
+                  <a routerLink="/admin/fiscal" class="text-brand-400 underline">Facturación</a>.
+                </p>
+              }
+              @if (fiscalActionError()) {
+                <p class="mt-2 text-xs text-rose-300">{{ fiscalActionError() }}</p>
+              }
+            </section>
+
+            <app-sale-ticket
+              #ticket
+              [sale]="d"
+              [fiscalDocument]="primaryFiscalDoc(d)"
+            />
 
             <div class="mt-6 border-t border-slate-800 pt-4">
               <button
@@ -217,8 +310,17 @@ interface Envelope<T> {
     }
   `
 })
-export class SaleHistoryComponent {
+export class SaleHistoryComponent implements OnInit {
   private readonly baseUrl = '/api/sales';
+  readonly fiscalService = inject(FiscalService);
+
+  readonly fiscalProfileReady = signal(false);
+  readonly fiscalActionError = signal<string | null>(null);
+  readonly buyerTaxId = signal('');
+
+  readonly fiscalStatusLabel = fiscalStatusLabel;
+  readonly formatVoucher = formatVoucher;
+  readonly isFiscalAuthorized = isFiscalAuthorized;
 
   readonly startDate = signal('');
   readonly endDate = signal('');
@@ -318,4 +420,78 @@ export class SaleHistoryComponent {
     }
   }
 
+  ngOnInit(): void {
+    void this.checkFiscalProfile();
+  }
+
+  private async checkFiscalProfile(): Promise<void> {
+    const result = await this.fiscalService.getProfile();
+    this.fiscalProfileReady.set(result.success && !!result.data?.isEnabled);
+  }
+
+  primaryFiscalDoc(d: SaleDetailView): FiscalDocumentView | null {
+    const docs = d.fiscalDocuments ?? [];
+    const authorized = docs.find((fd) => isFiscalAuthorized(fd));
+    return authorized ?? docs[0] ?? null;
+  }
+
+  canCreditNote(fd: FiscalDocumentView, d: SaleDetailView): boolean {
+    if (!isFiscalAuthorized(fd) || fd.documentType > 2) {
+      return false;
+    }
+    const docs = d.fiscalDocuments ?? [];
+    const ncType = fd.documentType === 1 ? 3 : 4;
+    return !docs.some(
+      (x) => x.documentType === ncType && x.originalFiscalDocumentId === fd.id
+    );
+  }
+
+  private reloadDetail(): void {
+    this.detail.reload();
+  }
+
+  async issueFacturaB(saleId: string): Promise<void> {
+    this.fiscalActionError.set(null);
+    const result = await this.fiscalService.issueInvoice({ saleId, isInvoiceA: false });
+    if (!result.success) {
+      this.fiscalActionError.set(result.error?.message ?? 'Error al emitir.');
+    }
+    this.reloadDetail();
+  }
+
+  async issueFacturaA(saleId: string): Promise<void> {
+    this.fiscalActionError.set(null);
+    const result = await this.fiscalService.issueInvoice({
+      saleId,
+      isInvoiceA: true,
+      buyerTaxId: this.buyerTaxId().trim() || null
+    });
+    if (!result.success) {
+      this.fiscalActionError.set(result.error?.message ?? 'Error al emitir.');
+    }
+    this.reloadDetail();
+  }
+
+  async retryFiscal(fiscalDocumentId: string): Promise<void> {
+    this.fiscalActionError.set(null);
+    const result = await this.fiscalService.retry(fiscalDocumentId);
+    if (!result.success) {
+      this.fiscalActionError.set(result.error?.message ?? 'Error al reintentar.');
+    }
+    this.reloadDetail();
+  }
+
+  async issueCreditNote(fd: FiscalDocumentView, d: SaleDetailView): Promise<void> {
+    this.fiscalActionError.set(null);
+    const result = await this.fiscalService.issueCreditNote({
+      originalFiscalDocumentId: fd.id,
+      saleId: d.id,
+      amount: d.totalAmount
+    });
+    if (!result.success) {
+      this.fiscalActionError.set(result.error?.message ?? 'Error al emitir nota de crédito.');
+    }
+    this.reloadDetail();
+  }
 }
+

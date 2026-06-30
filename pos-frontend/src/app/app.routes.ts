@@ -94,6 +94,13 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/admin/pages/admin-page.component').then((m) => m.AdminPageComponent)
       },
+      {
+        path: 'admin/fiscal',
+        loadComponent: () =>
+          import('./features/admin/pages/fiscal-profile-page.component').then(
+            (m) => m.FiscalProfilePageComponent
+          )
+      },
       { path: 'administracion', redirectTo: 'admin', pathMatch: 'full' },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' }
     ]

@@ -518,6 +518,106 @@
         }
       }
     },
+    "/api/fiscal-documents/by-sale/{saleId}": {
+      "get": {
+        "tags": [
+          "FiscalDocuments"
+        ],
+        "parameters": [
+          {
+            "name": "saleId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfFiscalDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfFiscalDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfIReadOnlyListOfFiscalDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fiscal-documents/{id}": {
+      "get": {
+        "tags": [
+          "FiscalDocuments"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/fiscal-documents/issue": {
       "post": {
         "tags": [
@@ -718,6 +818,122 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfFiscalDocumentResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/fiscal/profile": {
+      "get": {
+        "tags": [
+          "FiscalProfile"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "FiscalProfile"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTenantFiscalProfileRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTenantFiscalProfileRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpsertTenantFiscalProfileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
                 }
               }
             }
@@ -1246,6 +1462,162 @@
               "text/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseOfTenantEntitlementsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/platform/tenants/{tenantId}/fiscal-profile": {
+      "get": {
+        "tags": [
+          "Platform"
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Platform"
+        ],
+        "parameters": [
+          {
+            "name": "tenantId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTenantFiscalProfileApiRequest"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTenantFiscalProfileApiRequest"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetTenantFiscalProfileApiRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseOfTenantFiscalProfileResponse"
                 }
               }
             }
@@ -3621,6 +3993,33 @@
           }
         }
       },
+      "ApiResponseOfIReadOnlyListOfFiscalDocumentResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/FiscalDocumentResponse"
+            }
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApiErrorBody"
+              }
+            ]
+          }
+        }
+      },
       "ApiResponseOfIReadOnlyListOfProductResponse": {
         "type": "object",
         "properties": {
@@ -4098,6 +4497,34 @@
               },
               {
                 "$ref": "#/components/schemas/TenantEntitlementsDto"
+              }
+            ]
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/ApiErrorBody"
+              }
+            ]
+          }
+        }
+      },
+      "ApiResponseOfTenantFiscalProfileResponse": {
+        "type": "object",
+        "properties": {
+          "success": {
+            "type": "boolean"
+          },
+          "data": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/TenantFiscalProfileResponse"
               }
             ]
           },
@@ -4647,6 +5074,13 @@
             "type": "string",
             "format": "uuid"
           },
+          "originalFiscalDocumentId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
           "documentType": {
             "$ref": "#/components/schemas/FiscalDocumentType"
           },
@@ -4720,6 +5154,39 @@
           "updatedAtUtc": {
             "type": "string",
             "format": "date-time"
+          },
+          "buyerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "buyerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "authorizedAmount": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "null",
+              "number",
+              "string"
+            ],
+            "format": "double"
+          },
+          "documentTypeLabel": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "afipQrUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -4787,6 +5254,18 @@
           },
           "isInvoiceA": {
             "type": "boolean"
+          },
+          "buyerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "buyerName": {
+            "type": [
+              "null",
+              "string"
+            ]
           }
         }
       },
@@ -5436,6 +5915,12 @@
             "items": {
               "$ref": "#/components/schemas/SaleDetailLineViewResponse"
             }
+          },
+          "fiscalDocuments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/FiscalDocumentResponse"
+            }
           }
         }
       },
@@ -5606,6 +6091,37 @@
           }
         }
       },
+      "SetTenantFiscalProfileApiRequest": {
+        "type": "object",
+        "properties": {
+          "taxId": {
+            "type": "string"
+          },
+          "pointOfSale": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isProduction": {
+            "type": "boolean"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "certificateRef": {
+            "type": "string"
+          },
+          "privateKeyRef": {
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          }
+        }
+      },
       "StartImpersonationSessionApiRequest": {
         "required": [
           "tenantId",
@@ -5736,6 +6252,42 @@
           },
           "salesEnabled": {
             "type": "boolean"
+          }
+        }
+      },
+      "TenantFiscalProfileResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "taxId": {
+            "type": "string"
+          },
+          "pointOfSale": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isProduction": {
+            "type": "boolean"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "certificateRef": {
+            "type": "string"
+          },
+          "privateKeyRef": {
+            "type": "string"
+          },
+          "updatedAtUtc": {
+            "type": "string",
+            "format": "date-time"
           }
         }
       },
@@ -5925,6 +6477,34 @@
           }
         }
       },
+      "UpsertTenantFiscalProfileRequest": {
+        "type": "object",
+        "properties": {
+          "taxId": {
+            "type": "string"
+          },
+          "pointOfSale": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "isProduction": {
+            "type": "boolean"
+          },
+          "isEnabled": {
+            "type": "boolean"
+          },
+          "certificateRef": {
+            "type": "string"
+          },
+          "privateKeyRef": {
+            "type": "string"
+          }
+        }
+      },
       "WeatherForecast": {
         "required": [
           "date",
@@ -5975,6 +6555,9 @@
     },
     {
       "name": "FiscalDocuments"
+    },
+    {
+      "name": "FiscalProfile"
     },
     {
       "name": "Platform"

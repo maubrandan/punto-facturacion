@@ -60,6 +60,52 @@ import {
         </div>
 
         <div class="card-dashboard border-indigo-700/30">
+          <h2 class="heading-brand card-header-accent text-sm font-bold uppercase tracking-wide text-slate-200">
+            Perfil fiscal ARCA
+          </h2>
+          <p class="mt-1 text-xs text-slate-500">CUIT, punto de venta y certificado para facturación electrónica del negocio.</p>
+
+          <div class="mt-3 grid gap-3 sm:grid-cols-2">
+            <label class="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-sm sm:col-span-2">
+              <span class="block text-xs text-slate-500">CUIT</span>
+              <input class="input-brand mt-2" [value]="fiscalTaxId()" (input)="fiscalTaxId.set(($any($event.target)).value)" />
+            </label>
+            <label class="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-sm">
+              <span class="block text-xs text-slate-500">Punto de venta</span>
+              <input class="input-brand mt-2" type="number" min="1" [value]="fiscalPointOfSale()" (input)="fiscalPointOfSale.set(+($any($event.target)).value || 1)" />
+            </label>
+            <label class="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-sm">
+              <span class="block text-xs text-slate-500">Ref. certificado (.pfx)</span>
+              <input class="input-brand mt-2" [value]="fiscalCertificateRef()" (input)="fiscalCertificateRef.set(($any($event.target)).value)" />
+            </label>
+            <label class="rounded-lg border border-slate-800/80 bg-slate-900/40 p-3 text-sm sm:col-span-2">
+              <span class="block text-xs text-slate-500">Clave certificado / ref. clave privada</span>
+              <input class="input-brand mt-2" [value]="fiscalPrivateKeyRef()" (input)="fiscalPrivateKeyRef.set(($any($event.target)).value)" />
+            </label>
+          </div>
+
+          <div class="mt-3 flex flex-wrap gap-4 text-sm text-slate-300">
+            <label class="flex items-center gap-2">
+              <input type="checkbox" [checked]="fiscalIsEnabled()" (change)="fiscalIsEnabled.set(($any($event.target)).checked)" />
+              Habilitado
+            </label>
+            <label class="flex items-center gap-2">
+              <input type="checkbox" [checked]="fiscalIsProduction()" (change)="fiscalIsProduction.set(($any($event.target)).checked)" />
+              Producción AFIP
+            </label>
+          </div>
+
+          <label class="mt-3 block text-sm">
+            <span class="text-xs text-slate-500">Justificación para guardar perfil fiscal</span>
+            <input class="input-brand mt-2" [value]="fiscalJustification()" (input)="fiscalJustification.set(($any($event.target)).value)" />
+          </label>
+
+          <div class="mt-3 flex gap-2">
+            <button class="btn-primary" (click)="saveFiscalProfile()" [disabled]="loading()">Guardar perfil fiscal</button>
+          </div>
+        </div>
+
+        <div class="card-dashboard border-indigo-700/30">
           <h2 class="heading-brand card-header-accent text-sm font-bold uppercase tracking-wide text-slate-200">Entitlements</h2>
 
           @if (entitlements(); as e) {
@@ -184,6 +230,13 @@ export class PlatformTenantDetailPageComponent {
   readonly tenant = signal<PlatformTenantDetail | null>(null);
   readonly entitlements = signal<TenantEntitlements | null>(null);
   readonly justification = signal('Ajuste operativo desde consola');
+  readonly fiscalTaxId = signal('');
+  readonly fiscalPointOfSale = signal(1);
+  readonly fiscalCertificateRef = signal('');
+  readonly fiscalPrivateKeyRef = signal('');
+  readonly fiscalIsEnabled = signal(true);
+  readonly fiscalIsProduction = signal(false);
+  readonly fiscalJustification = signal('Alta fiscal desde consola de plataforma');
   readonly tenantUsers = signal<PlatformTenantUser[]>([]);
   readonly userEmailFilter = signal('');
   readonly userActionJustification = signal('Gestión de usuario desde consola de plataforma');
@@ -201,6 +254,19 @@ export class PlatformTenantDetailPageComponent {
     this.api.getTenantById(this.tenantId).subscribe({
       next: (tenant) => {
         this.tenant.set(tenant);
+        this.api.getFiscalProfile(this.tenantId).subscribe({
+          next: (profile) => {
+            if (profile) {
+              this.fiscalTaxId.set(profile.taxId);
+              this.fiscalPointOfSale.set(profile.pointOfSale);
+              this.fiscalCertificateRef.set(profile.certificateRef);
+              this.fiscalPrivateKeyRef.set(profile.privateKeyRef);
+              this.fiscalIsEnabled.set(profile.isEnabled);
+              this.fiscalIsProduction.set(profile.isProduction);
+            }
+          }
+        });
+
         this.api.getEntitlements(this.tenantId).subscribe({
           next: (e) => {
             this.entitlements.set(e);
@@ -306,6 +372,32 @@ export class PlatformTenantDetailPageComponent {
     const current = this.entitlements();
     if (!current) return;
     this.entitlements.set({ ...current, salesEnabled: checked });
+  }
+
+  saveFiscalProfile(): void {
+    this.loading.set(true);
+    this.error.set(null);
+    this.api
+      .setFiscalProfile(this.tenantId, {
+        taxId: this.fiscalTaxId().trim(),
+        pointOfSale: this.fiscalPointOfSale(),
+        certificateRef: this.fiscalCertificateRef().trim(),
+        privateKeyRef: this.fiscalPrivateKeyRef().trim(),
+        isEnabled: this.fiscalIsEnabled(),
+        isProduction: this.fiscalIsProduction(),
+        justification: this.fiscalJustification().trim()
+      })
+      .subscribe({
+        next: (saved) => {
+          this.fiscalTaxId.set(saved.taxId);
+          this.fiscalPointOfSale.set(saved.pointOfSale);
+          this.loading.set(false);
+        },
+        error: (err: unknown) => {
+          this.error.set(err instanceof Error ? err.message : 'No se pudo guardar el perfil fiscal.');
+          this.loading.set(false);
+        }
+      });
   }
 
   saveEntitlements(): void {

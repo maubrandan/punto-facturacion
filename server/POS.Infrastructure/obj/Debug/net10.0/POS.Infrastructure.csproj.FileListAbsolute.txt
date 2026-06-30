@@ -63,3 +63,4 @@ C:\proj\punto-facturacion\server\POS.Infrastructure\obj\Debug\net10.0\refint\POS
 C:\proj\punto-facturacion\server\POS.Infrastructure\obj\Debug\net10.0\POS.Infrastructure.pdb
 C:\proj\punto-facturacion\server\POS.Infrastructure\obj\Debug\net10.0\POS.Infrastructure.genruntimeconfig.cache
 C:\proj\punto-facturacion\server\POS.Infrastructure\obj\Debug\net10.0\ref\POS.Infrastructure.dll
+C:\proj\punto-facturacion\server\POS.Infrastructure\obj\Debug\net10.0\POS.Infrastructure.sourcelink.json

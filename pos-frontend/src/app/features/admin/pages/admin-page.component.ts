@@ -91,6 +91,7 @@ export class AdminPageComponent {
   });
 
   readonly quickLinks: ReadonlyArray<{ path: string; title: string; hint: string }> = [
+    { path: '/admin/fiscal', title: 'Facturación electrónica', hint: 'CUIT, punto de venta y certificados ARCA' },
     { path: '/inventario', title: 'Inventario', hint: 'Productos y stock del negocio' },
     { path: '/proveedores', title: 'Proveedores', hint: 'Directorio para compras' },
     { path: '/compras', title: 'Compras', hint: 'Listado de ingresos de mercadería' },

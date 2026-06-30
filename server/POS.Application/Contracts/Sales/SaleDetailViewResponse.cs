@@ -1,3 +1,5 @@
+using POS.Application.Contracts.Fiscal;
+
 namespace POS.Application.Contracts.Sales;
 
 public sealed class SaleDetailLineViewResponse
@@ -34,4 +36,6 @@ public sealed class SaleDetailViewResponse
     public string? CreatedByUserName { get; init; }
 
     public IReadOnlyList<SaleDetailLineViewResponse> Lines { get; init; } = Array.Empty<SaleDetailLineViewResponse>();
+
+    public IReadOnlyList<FiscalDocumentResponse> FiscalDocuments { get; init; } = Array.Empty<FiscalDocumentResponse>();
 }

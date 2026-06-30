@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using POS.Application.Contracts.Fiscal;
 using POS.Application.Contracts.Sales;
 using POS.Application.Interfaces;
+using POS.Domain.Entities;
+using POS.Infrastructure.Fiscal;
 using POS.Infrastructure.Persistence;
 
 namespace POS.Infrastructure.Sales;
@@ -63,7 +66,7 @@ public sealed class SalesQueryService : ISalesQueryService
 
     public async Task<SaleDetailViewResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default)
     {
-        return await _db.Sales
+        var sale = await _db.Sales
             .AsNoTracking()
             .Where(s => s.Id == id)
             .Select(
@@ -92,6 +95,40 @@ public sealed class SalesQueryService : ISalesQueryService
                         .ToList()
                 })
             .FirstOrDefaultAsync(cancellationToken);
+
+        if (sale is null)
+            return null;
+
+        var tenantId = await _db.Sales.AsNoTracking()
+            .Where(s => s.Id == id)
+            .Select(s => s.TenantId)
+            .FirstAsync(cancellationToken);
+
+        var profileTaxId = await _db.Set<TenantFiscalProfile>()
+            .AsNoTracking()
+            .Where(p => p.TenantId == tenantId)
+            .Select(p => p.TaxId)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var fiscalDocuments = await _db.Set<FiscalDocument>()
+            .AsNoTracking()
+            .Where(d => d.SaleId == id && d.TenantId == tenantId)
+            .OrderBy(d => d.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+        return new SaleDetailViewResponse
+        {
+            Id = sale.Id,
+            Date = sale.Date,
+            TotalNet = sale.TotalNet,
+            TotalTax = sale.TotalTax,
+            TotalAmount = sale.TotalAmount,
+            CreatedByUserName = sale.CreatedByUserName,
+            Lines = sale.Lines,
+            FiscalDocuments = fiscalDocuments
+                .Select(d => FiscalDocumentMapper.ToResponse(d, profileTaxId))
+                .ToList()
+        };
     }
 
     public async Task<DailySummaryResponse> GetDailySummaryAsync(

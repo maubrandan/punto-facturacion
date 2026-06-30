@@ -227,6 +227,9 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.LastErrorCode).HasMaxLength(128);
             entity.Property(e => e.LastErrorMessage).HasMaxLength(1500);
             entity.Property(e => e.CorrelationId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.BuyerTaxId).HasMaxLength(32);
+            entity.Property(e => e.BuyerName).HasMaxLength(256);
+            entity.Property(e => e.AuthorizedAmount).HasPrecision(18, 2);
             entity.HasIndex(e => new { e.TenantId, e.SaleId, e.DocumentType }).IsUnique();
             entity.HasIndex(e => new { e.TenantId, e.PointOfSale, e.DocumentType, e.VoucherNumber }).IsUnique();
             entity.HasIndex(e => new { e.TenantId, e.Status, e.NextRetryAtUtc });

@@ -8,6 +8,8 @@ public sealed class FiscalDocumentResponse
 
     public Guid SaleId { get; init; }
 
+    public Guid? OriginalFiscalDocumentId { get; init; }
+
     public FiscalDocumentType DocumentType { get; init; }
 
     public FiscalDocumentStatus Status { get; init; }
@@ -33,4 +35,14 @@ public sealed class FiscalDocumentResponse
     public DateTime CreatedAtUtc { get; init; }
 
     public DateTime UpdatedAtUtc { get; init; }
+
+    public string? BuyerTaxId { get; init; }
+
+    public string? BuyerName { get; init; }
+
+    public decimal? AuthorizedAmount { get; init; }
+
+    public string? DocumentTypeLabel { get; init; }
+
+    public string? AfipQrUrl { get; init; }
 }

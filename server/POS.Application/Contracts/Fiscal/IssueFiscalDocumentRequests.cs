@@ -4,7 +4,11 @@ public sealed class IssueElectronicInvoiceRequest
 {
     public Guid SaleId { get; init; }
 
-    public bool IsInvoiceA { get; init; } = true;
+    public bool IsInvoiceA { get; init; }
+
+    public string? BuyerTaxId { get; init; }
+
+    public string? BuyerName { get; init; }
 }
 
 public sealed class RetryElectronicInvoiceRequest

@@ -63,6 +63,7 @@ public sealed class FiscalRetryWorker : BackgroundService
                 .FirstOrDefaultAsync(p => p.TenantId == document.TenantId && p.IsEnabled, cancellationToken);
             var sale = await db.Sales
                 .AsNoTracking()
+                .Include(s => s.Details)
                 .FirstOrDefaultAsync(s => s.Id == document.SaleId && s.TenantId == document.TenantId, cancellationToken);
             if (profile is null || sale is null)
             {
@@ -72,6 +73,30 @@ public sealed class FiscalRetryWorker : BackgroundService
 
             var correlationId = Guid.NewGuid().ToString("N");
             document.MarkPending(correlationId, now);
+            var amount = document.AuthorizedAmount ?? sale.TotalAmount;
+            long? originalVoucher = null;
+            if (document.OriginalFiscalDocumentId.HasValue)
+            {
+                var original = await db.Set<FiscalDocument>()
+                    .AsNoTracking()
+                    .FirstOrDefaultAsync(d => d.Id == document.OriginalFiscalDocumentId.Value, cancellationToken);
+                originalVoucher = original?.VoucherNumber;
+            }
+
+            var lines = sale.Details
+                .OrderBy(d => d.Id)
+                .Select(
+                    d => new FiscalAuthorizationLine
+                    {
+                        Description = d.ProductName,
+                        Quantity = d.Quantity,
+                        UnitNetPrice = d.UnitNetPrice,
+                        TaxRate = d.TaxRate,
+                        LineNetSubtotal = d.LineNetSubtotal,
+                        LineTaxAmount = d.LineTaxAmount
+                    })
+                .ToList();
+
             var result = await fiscal.AuthorizeAsync(
                 new FiscalAuthorizationRequest
                 {
@@ -81,8 +106,16 @@ public sealed class FiscalRetryWorker : BackgroundService
                     DocumentType = document.DocumentType,
                     FiscalDocumentId = document.Id,
                     SaleId = document.SaleId,
-                    TotalAmount = sale.TotalAmount,
-                    CorrelationId = correlationId
+                    TotalAmount = amount,
+                    CorrelationId = correlationId,
+                    BuyerTaxId = document.BuyerTaxId,
+                    BuyerName = document.BuyerName,
+                    OriginalFiscalDocumentId = document.OriginalFiscalDocumentId,
+                    OriginalVoucherNumber = originalVoucher,
+                    IsProduction = profile.IsProduction,
+                    CertificateRef = profile.CertificateRef,
+                    PrivateKeyRef = profile.PrivateKeyRef,
+                    Lines = lines
                 },
                 cancellationToken);
 

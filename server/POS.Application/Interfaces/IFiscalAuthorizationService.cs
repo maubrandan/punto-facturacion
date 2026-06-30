@@ -19,6 +19,37 @@ public sealed class FiscalAuthorizationRequest
     public required decimal TotalAmount { get; init; }
 
     public required string CorrelationId { get; init; }
+
+    public string? BuyerTaxId { get; init; }
+
+    public string? BuyerName { get; init; }
+
+    public Guid? OriginalFiscalDocumentId { get; init; }
+
+    public long? OriginalVoucherNumber { get; init; }
+
+    public bool IsProduction { get; init; }
+
+    public string? CertificateRef { get; init; }
+
+    public string? PrivateKeyRef { get; init; }
+
+    public IReadOnlyList<FiscalAuthorizationLine> Lines { get; init; } = Array.Empty<FiscalAuthorizationLine>();
+}
+
+public sealed class FiscalAuthorizationLine
+{
+    public required string Description { get; init; }
+
+    public required int Quantity { get; init; }
+
+    public required decimal UnitNetPrice { get; init; }
+
+    public required decimal TaxRate { get; init; }
+
+    public required decimal LineNetSubtotal { get; init; }
+
+    public required decimal LineTaxAmount { get; init; }
 }
 
 public sealed class FiscalAuthorizationResult

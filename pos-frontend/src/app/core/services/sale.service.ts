@@ -2,6 +2,7 @@ import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http'
 import { inject, Injectable, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { finalize, map } from 'rxjs/operators';
+import type { FiscalDocumentView } from '../models/fiscal.model';
 import { ProductService, RequestResult } from './product.service';
 
 export interface CreateSaleLineDto {
@@ -59,6 +60,7 @@ export interface SaleDetailView {
   totalAmount: number;
   createdByUserName: string | null;
   lines: SaleDetailLineView[];
+  fiscalDocuments?: FiscalDocumentView[];
 }
 
 export interface DailySummaryResult {
@@ -93,6 +95,7 @@ export function saleResponseToDetailView(
     totalTax: s.totalTax,
     totalAmount: s.totalAmount,
     createdByUserName,
+    fiscalDocuments: [],
     lines: s.lines.map((l) => ({
       id: l.id,
       productId: l.productId,

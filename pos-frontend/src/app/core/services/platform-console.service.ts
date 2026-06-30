@@ -1,6 +1,7 @@
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
-import { map, Observable } from 'rxjs';
+import { catchError, map, Observable, of } from 'rxjs';
+import type { TenantFiscalProfileView, UpsertTenantFiscalProfileDto } from '../models/fiscal.model';
 
 export interface PlatformTenantSummary {
   id: string;
@@ -135,6 +136,24 @@ export class PlatformConsoleService {
     return this.http
       .put<ApiResponse<TenantEntitlements>>(`${this.apiBase}/tenants/${tenantId}/entitlements`, payload)
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudieron actualizar entitlements.')));
+  }
+
+  getFiscalProfile(tenantId: string): Observable<TenantFiscalProfileView | null> {
+    return this.http
+      .get<ApiResponse<TenantFiscalProfileView>>(`${this.apiBase}/tenants/${tenantId}/fiscal-profile`)
+      .pipe(
+        map((r) => (r.success && r.data ? r.data : null)),
+        catchError(() => of(null))
+      );
+  }
+
+  setFiscalProfile(
+    tenantId: string,
+    payload: UpsertTenantFiscalProfileDto & { justification: string }
+  ): Observable<TenantFiscalProfileView> {
+    return this.http
+      .put<ApiResponse<TenantFiscalProfileView>>(`${this.apiBase}/tenants/${tenantId}/fiscal-profile`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo actualizar el perfil fiscal.')));
   }
 
   getTenantUsers(

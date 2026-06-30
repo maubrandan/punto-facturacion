@@ -1,5 +1,7 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
-import { Component, input } from '@angular/core';
+import { Component, computed, input } from '@angular/core';
+import type { FiscalDocumentView } from '../../../core/models/fiscal.model';
+import { formatVoucher, isFiscalAuthorized } from '../../../core/models/fiscal.model';
 import type { SaleDetailView } from '../../../core/services/sale.service';
 
 /**
@@ -14,7 +16,50 @@ import type { SaleDetailView } from '../../../core/services/sale.service';
     @if (sale()) {
       <div class="ticket" role="document" aria-label="Ticket de venta">
         <div class="ticket-logo">{{ storeLabel() }}</div>
-        <p class="ticket-sub">Venta / Comprobante</p>
+        <p class="ticket-sub">
+          @if (fiscalDoc(); as fd) {
+            {{ fd.documentTypeLabel ?? 'Comprobante fiscal' }}
+          } @else {
+            Venta / Comprobante
+          }
+        </p>
+
+        @if (fiscalDoc(); as fd) {
+          @if (isFiscalAuthorized(fd)) {
+            <div class="ticket-fiscal">
+              <div class="ticket-row">
+                <span>Comprobante</span>
+                <span class="ticket-row-val ticket-row-val--strong">{{ formatVoucher(fd) }}</span>
+              </div>
+              <div class="ticket-row">
+                <span>CAE</span>
+                <span class="ticket-row-val">{{ fd.cae }}</span>
+              </div>
+              <div class="ticket-row">
+                <span>Vto. CAE</span>
+                <span class="ticket-row-val">{{ fd.caeExpiresAtUtc | date: 'dd/MM/yyyy' }}</span>
+              </div>
+              @if (fd.buyerTaxId) {
+                <div class="ticket-row">
+                  <span>CUIT comprador</span>
+                  <span class="ticket-row-val">{{ fd.buyerTaxId }}</span>
+                </div>
+              }
+              @if (fd.buyerName) {
+                <div class="ticket-row">
+                  <span>Comprador</span>
+                  <span class="ticket-row-val">{{ fd.buyerName }}</span>
+                </div>
+              }
+              @if (qrImageUrl(); as qr) {
+                <div class="ticket-qr">
+                  <img [src]="qr" width="120" height="120" alt="Código QR AFIP" />
+                </div>
+              }
+            </div>
+            <hr class="ticket-sep" />
+          }
+        }
 
         <div class="ticket-row">
           <span>ID</span>
@@ -77,8 +122,24 @@ export class SaleTicketComponent {
   /** Detalle de la venta a imprimir. */
   readonly sale = input<SaleDetailView | null>(null);
 
+  /** Comprobante fiscal autorizado (opcional). */
+  readonly fiscalDocument = input<FiscalDocumentView | null>(null);
+
   /** Texto centrado tipo logo (p. ej. nombre del comercio). */
   readonly storeLabel = input<string>('PUNTO FACTURACIÓN');
+
+  readonly fiscalDoc = computed(() => this.fiscalDocument());
+
+  readonly qrImageUrl = computed(() => {
+    const url = this.fiscalDocument()?.afipQrUrl;
+    if (!url) {
+      return null;
+    }
+    return `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(url)}`;
+  });
+
+  readonly formatVoucher = formatVoucher;
+  readonly isFiscalAuthorized = isFiscalAuthorized;
 
   startPrint(): void {
     document.body.classList.add('printing-thermal-ticket');

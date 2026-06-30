@@ -1,9 +1,12 @@
 import { DecimalPipe } from '@angular/common';
-import { Component, computed, inject, signal } from '@angular/core';
+import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
+import type { FiscalDocumentView } from '../../../core/models/fiscal.model';
+import { fiscalStatusLabel, isFiscalAuthorized } from '../../../core/models/fiscal.model';
 import { Product } from '../../../core/models/product.model';
 import { AuthService } from '../../../core/services/auth.service';
+import { FiscalService } from '../../../core/services/fiscal.service';
 import { ProductService } from '../../../core/services/product.service';
 import {
   CreateSaleLineDto,
@@ -114,8 +117,86 @@ const BARCODE_LIKE = /^\d{8,14}$/;
             @if (lastSaleId()) {
               <p class="mt-3 text-sm text-emerald-300/90">Venta registrada. Id: {{ lastSaleId() }}</p>
             }
+
+            @if (lastSaleId() && fiscalProfileReady()) {
+              <div class="mt-4 rounded-xl border border-slate-700/80 bg-slate-900/50 p-3">
+                <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Comprobante fiscal
+                </h3>
+                @if (lastFiscalDoc(); as fd) {
+                  @if (isFiscalAuthorized(fd)) {
+                    <p class="mt-2 text-sm text-emerald-300">
+                      {{ fd.documentTypeLabel }} autorizada · CAE {{ fd.cae }}
+                    </p>
+                  } @else {
+                    <p class="mt-2 text-sm text-amber-200">
+                      {{ fiscalStatusLabel(fd.status) }}
+                      @if (fd.lastErrorMessage) {
+                        — {{ fd.lastErrorMessage }}
+                      }
+                    </p>
+                    <button
+                      type="button"
+                      class="btn-secondary-sm mt-2"
+                      [disabled]="fiscalService.busy()"
+                      (click)="retryFiscal()"
+                    >
+                      Reintentar autorización
+                    </button>
+                  }
+                } @else {
+                  <div class="mt-2 space-y-2">
+                    <button
+                      type="button"
+                      class="btn-primary w-full text-sm"
+                      [disabled]="fiscalService.busy()"
+                      (click)="issueFacturaB()"
+                    >
+                      Emitir Factura B (consumidor final)
+                    </button>
+                    <details class="text-sm text-slate-300">
+                      <summary class="cursor-pointer text-brand-300">Factura A (con CUIT)</summary>
+                      <div class="mt-2 space-y-2">
+                        <input
+                          type="text"
+                          class="input-brand"
+                          placeholder="CUIT comprador (11 dígitos)"
+                          [value]="buyerTaxId()"
+                          (input)="buyerTaxId.set(($any($event.target)).value)"
+                        />
+                        <input
+                          type="text"
+                          class="input-brand"
+                          placeholder="Razón social (opcional)"
+                          [value]="buyerName()"
+                          (input)="buyerName.set(($any($event.target)).value)"
+                        />
+                        <button
+                          type="button"
+                          class="btn-secondary w-full"
+                          [disabled]="fiscalService.busy()"
+                          (click)="issueFacturaA()"
+                        >
+                          Emitir Factura A
+                        </button>
+                      </div>
+                    </details>
+                  </div>
+                  @if (fiscalError()) {
+                    <p class="mt-2 text-xs text-rose-300">{{ fiscalError() }}</p>
+                  }
+                }
+              </div>
+            } @else if (lastSaleId() && fiscalProfileChecked() && !fiscalProfileReady()) {
+              <p class="mt-3 text-xs text-slate-500">
+                Configure el perfil fiscal en
+                <a routerLink="/admin/fiscal" class="text-brand-400 underline">Administración → Facturación</a>
+                para emitir comprobantes electrónicos.
+              </p>
+            }
+
             @if (lastTicketDetail(); as td) {
-              <app-sale-ticket #saleTicket [sale]="td" />
+              <app-sale-ticket #saleTicket [sale]="td" [fiscalDocument]="lastFiscalDoc()" />
               <button
                 type="button"
                 class="btn-secondary mt-3 w-full"
@@ -185,10 +266,21 @@ const BARCODE_LIKE = /^\d{8,14}$/;
     </section>
   `
 })
-export class SaleComponent {
+export class SaleComponent implements OnInit {
   readonly productService = inject(ProductService);
   readonly saleService = inject(SaleService);
+  readonly fiscalService = inject(FiscalService);
   private readonly authService = inject(AuthService);
+
+  readonly fiscalProfileReady = signal(false);
+  readonly fiscalProfileChecked = signal(false);
+  readonly lastFiscalDoc = signal<FiscalDocumentView | null>(null);
+  readonly fiscalError = signal<string | null>(null);
+  readonly buyerTaxId = signal('');
+  readonly buyerName = signal('');
+
+  readonly fiscalStatusLabel = fiscalStatusLabel;
+  readonly isFiscalAuthorized = isFiscalAuthorized;
 
   readonly searchText = signal('');
   /** Catálogo local para búsqueda inmediata (barcode / nombre). */
@@ -233,8 +325,15 @@ export class SaleComponent {
   /** Detalle mapeado desde la respuesta del POST para {@link SaleTicketComponent}. */
   readonly lastTicketDetail = signal<SaleDetailView | null>(null);
 
-  constructor() {
+  ngOnInit(): void {
     this.reloadCatalog();
+    void this.checkFiscalProfile();
+  }
+
+  private async checkFiscalProfile(): Promise<void> {
+    const result = await this.fiscalService.getProfile();
+    this.fiscalProfileChecked.set(true);
+    this.fiscalProfileReady.set(result.success && !!result.data?.isEnabled);
   }
 
   private reloadCatalog(): void {
@@ -296,6 +395,8 @@ export class SaleComponent {
     this.saleError.set(null);
     this.lastSaleId.set(null);
     this.lastTicketDetail.set(null);
+    this.lastFiscalDoc.set(null);
+    this.fiscalError.set(null);
     this.searchHint.set(null);
     this.items.update((rows) => {
       const i = rows.findIndex((r) => r.productId === p.id);
@@ -343,6 +444,8 @@ export class SaleComponent {
     this.saleError.set(null);
     this.lastSaleId.set(null);
     this.lastTicketDetail.set(null);
+    this.lastFiscalDoc.set(null);
+    this.fiscalError.set(null);
     const lines: CreateSaleLineDto[] = this.items().map((it) => ({
       productId: it.productId,
       quantity: it.quantity
@@ -363,6 +466,62 @@ export class SaleComponent {
       this.searchText.set('');
     } else {
       this.saleError.set(result.error?.message ?? 'No se pudo registrar la venta.');
+    }
+  }
+
+  async issueFacturaB(): Promise<void> {
+    const saleId = this.lastSaleId();
+    if (!saleId) {
+      return;
+    }
+    this.fiscalError.set(null);
+    const result = await this.fiscalService.issueInvoice({ saleId, isInvoiceA: false });
+    if (result.success && result.data) {
+      this.lastFiscalDoc.set(result.data);
+      return;
+    }
+    this.fiscalError.set(result.error?.message ?? 'No se pudo emitir la factura.');
+    if (result.data) {
+      this.lastFiscalDoc.set(result.data);
+    }
+  }
+
+  async issueFacturaA(): Promise<void> {
+    const saleId = this.lastSaleId();
+    if (!saleId) {
+      return;
+    }
+    this.fiscalError.set(null);
+    const result = await this.fiscalService.issueInvoice({
+      saleId,
+      isInvoiceA: true,
+      buyerTaxId: this.buyerTaxId().trim() || null,
+      buyerName: this.buyerName().trim() || null
+    });
+    if (result.success && result.data) {
+      this.lastFiscalDoc.set(result.data);
+      return;
+    }
+    this.fiscalError.set(result.error?.message ?? 'No se pudo emitir la factura.');
+    if (result.data) {
+      this.lastFiscalDoc.set(result.data);
+    }
+  }
+
+  async retryFiscal(): Promise<void> {
+    const doc = this.lastFiscalDoc();
+    if (!doc) {
+      return;
+    }
+    this.fiscalError.set(null);
+    const result = await this.fiscalService.retry(doc.id);
+    if (result.success && result.data) {
+      this.lastFiscalDoc.set(result.data);
+      return;
+    }
+    this.fiscalError.set(result.error?.message ?? 'No se pudo reintentar.');
+    if (result.data) {
+      this.lastFiscalDoc.set(result.data);
     }
   }
 }

@@ -60,6 +60,12 @@ public sealed class FiscalDocument : ITenantEntity
 
     public string CorrelationId { get; set; } = string.Empty;
 
+    public string? BuyerTaxId { get; set; }
+
+    public string? BuyerName { get; set; }
+
+    public decimal? AuthorizedAmount { get; set; }
+
     public DateTime CreatedAtUtc { get; set; } = DateTime.UtcNow;
 
     public DateTime UpdatedAtUtc { get; set; } = DateTime.UtcNow;

@@ -2,12 +2,12 @@ using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using POS.Infrastructure.Configuration;
 using POS.Application.Common;
 using POS.Application.Contracts.Fiscal;
 using POS.Application.Fiscal;
 using POS.Application.Interfaces;
 using POS.Domain.Entities;
-using POS.Infrastructure.Configuration;
 using POS.Infrastructure.Persistence;
 
 namespace POS.Infrastructure.Fiscal;
@@ -56,7 +56,7 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
         }
 
         var sale = await _db.Sales
-            .AsNoTracking()
+            .Include(s => s.Details)
             .FirstOrDefaultAsync(s => s.Id == command.SaleId && s.TenantId == tenantId, cancellationToken);
         if (sale is null)
         {
@@ -82,7 +82,7 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
         if (existing is not null)
         {
             if (existing.IsAuthorized)
-                return Result<FiscalDocumentResponse>.Ok(FiscalDocumentMapper.ToResponse(existing));
+                return Result<FiscalDocumentResponse>.Ok(FiscalDocumentMapper.ToResponse(existing, profile.TaxId));
 
             if (existing.Status is FiscalDocumentStatus.PendingAuthorization)
             {
@@ -93,6 +93,8 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
         }
 
         var now = DateTime.UtcNow;
+        var buyerTaxId = NormalizeOptional(command.BuyerTaxId);
+        var buyerName = command.BuyerName?.Trim();
         var document = existing ?? new FiscalDocument
         {
             Id = Guid.NewGuid(),
@@ -100,69 +102,38 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
             DocumentType = docType,
             PointOfSale = profile.PointOfSale,
             Status = FiscalDocumentStatus.Draft,
+            BuyerTaxId = buyerTaxId,
+            BuyerName = buyerName,
             CreatedAtUtc = now,
             UpdatedAtUtc = now
         };
 
         if (existing is null)
             _db.Set<FiscalDocument>().Add(document);
+        else
+        {
+            document.BuyerTaxId = buyerTaxId;
+            document.BuyerName = buyerName;
+        }
 
-        var correlationId = Guid.NewGuid().ToString("N");
-        document.MarkPending(correlationId, now);
+        var authorizer = new FiscalDocumentAuthorizer(
+            _db,
+            _fiscalAuthorization,
+            _arcaOptions,
+            _logger);
 
-        var authResult = await _fiscalAuthorization.AuthorizeAsync(
-            new FiscalAuthorizationRequest
-            {
-                TenantId = tenantId,
-                TaxId = profile.TaxId,
-                PointOfSale = profile.PointOfSale,
-                DocumentType = docType,
-                FiscalDocumentId = document.Id,
-                SaleId = sale.Id,
-                TotalAmount = sale.TotalAmount,
-                CorrelationId = correlationId
-            },
+        return await authorizer.AuthorizeAsync(
+            document,
+            profile,
+            sale,
+            sale.TotalAmount,
             cancellationToken);
+    }
 
-        if (authResult.IsSuccess && authResult.VoucherNumber.HasValue && !string.IsNullOrWhiteSpace(authResult.Cae))
-        {
-            document.MarkAuthorized(
-                authResult.VoucherNumber.Value,
-                authResult.Cae!,
-                authResult.CaeExpiresAtUtc ?? now.AddDays(10),
-                now);
-            await _db.SaveChangesAsync(cancellationToken);
-            return Result<FiscalDocumentResponse>.Ok(FiscalDocumentMapper.ToResponse(document));
-        }
-
-        if (authResult.IsTransientError && document.RetryCount < _arcaOptions.Value.RetryMaxAttempts)
-        {
-            var nextRetry = now.AddSeconds(
-                Math.Min(
-                    _arcaOptions.Value.RetryMaxDelayMinutes * 60,
-                    _arcaOptions.Value.RetryBaseDelaySeconds * (int)Math.Pow(2, document.RetryCount)));
-            document.ScheduleRetry(
-                authResult.ErrorCode ?? "fiscal.transient",
-                authResult.ErrorMessage ?? "Error transitorio de autorización.",
-                nextRetry,
-                now);
-            await _db.SaveChangesAsync(cancellationToken);
-            _logger.LogWarning(
-                "Comprobante {FiscalDocumentId} agendado para reintento en {NextRetryAtUtc}",
-                document.Id,
-                nextRetry);
-            return Result<FiscalDocumentResponse>.Failure(
-                "fiscal.retry_scheduled",
-                "ARCA no respondió de forma estable. Se programó reintento automático.");
-        }
-
-        document.MarkRejected(
-            authResult.ErrorCode ?? "fiscal.authorization_failed",
-            authResult.ErrorMessage ?? "ARCA rechazó la autorización.",
-            now);
-        await _db.SaveChangesAsync(cancellationToken);
-        return Result<FiscalDocumentResponse>.Failure(
-            document.LastErrorCode ?? "fiscal.authorization_failed",
-            document.LastErrorMessage ?? "ARCA rechazó la autorización.");
+    private static string? NormalizeOptional(string? taxId)
+    {
+        if (string.IsNullOrWhiteSpace(taxId))
+            return null;
+        return new string(taxId.Where(char.IsDigit).ToArray());
     }
 }

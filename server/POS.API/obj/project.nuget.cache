@@ -1,6 +1,6 @@
 {
   "version": 2,
-  "dgSpecHash": "sdSE9Kew9jM=",
+  "dgSpecHash": "9YLXt1MTQbo=",
   "success": true,
   "projectFilePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
   "expectedPackageFiles": [
@@ -53,7 +53,7 @@
     "C:\\Users\\xc_18\\.nuget\\packages\\system.configuration.configurationmanager\\9.0.4\\system.configuration.configurationmanager.9.0.4.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\system.identitymodel.tokens.jwt\\8.0.1\\system.identitymodel.tokens.jwt.8.0.1.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\system.memory.data\\8.0.1\\system.memory.data.8.0.1.nupkg.sha512",
-    "C:\\Users\\xc_18\\.nuget\\packages\\system.security.cryptography.pkcs\\9.0.4\\system.security.cryptography.pkcs.9.0.4.nupkg.sha512",
+    "C:\\Users\\xc_18\\.nuget\\packages\\system.security.cryptography.pkcs\\10.0.0\\system.security.cryptography.pkcs.10.0.0.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\system.security.cryptography.protecteddata\\9.0.4\\system.security.cryptography.protecteddata.9.0.4.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\system.security.cryptography.xml\\9.0.2\\system.security.cryptography.xml.9.0.2.nupkg.sha512"
   ],

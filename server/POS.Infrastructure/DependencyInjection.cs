@@ -50,10 +50,14 @@ public static class DependencyInjection
 
         services.AddScoped<ICreateSaleHandler, CreateSaleHandler>();
         services.AddScoped<ICreatePurchaseHandler, CreatePurchaseHandler>();
+        services.AddSingleton<Fiscal.Afip.AfipWsaaClient>();
+        services.AddSingleton<Fiscal.Afip.AfipWsfeClient>();
+        services.AddSingleton<Fiscal.Afip.DirectAfipAuthorizationService>();
         services.AddScoped<IFiscalAuthorizationService, ArcaFiscalAuthorizationService>();
         services.AddScoped<IIssueElectronicInvoiceHandler, IssueElectronicInvoiceHandler>();
         services.AddScoped<IRetryElectronicInvoiceHandler, RetryElectronicInvoiceHandler>();
         services.AddScoped<IIssueCreditNoteHandler, IssueCreditNoteHandler>();
+        services.AddScoped<IFiscalQueryService, FiscalQueryService>();
         services.AddScoped<IValidator<IssueElectronicInvoiceCommand>, IssueElectronicInvoiceCommandValidator>();
         services.AddScoped<IValidator<RetryElectronicInvoiceCommand>, RetryElectronicInvoiceCommandValidator>();
         services.AddScoped<IValidator<IssueCreditNoteCommand>, IssueCreditNoteCommandValidator>();
@@ -77,6 +81,8 @@ public static class DependencyInjection
         services.AddScoped<ITenantEntitlementGuard, TenantEntitlementGuard>();
         services.AddScoped<IValidator<SetTenantEntitlementsCommand>, SetTenantEntitlementsCommandValidator>();
         services.AddScoped<IPlatformTenantEntitlementsService, PlatformTenantEntitlementsService>();
+        services.AddScoped<IValidator<UpsertPlatformTenantFiscalProfileCommand>, UpsertPlatformTenantFiscalProfileCommandValidator>();
+        services.AddScoped<IPlatformTenantFiscalProfileService, PlatformTenantFiscalProfileService>();
 
         services.AddScoped<IValidator<PlatformUserActionRequest>, PlatformUserActionRequestValidator>();
         services.AddScoped<IPlatformTenantUserQuery, PlatformTenantUserQuery>();

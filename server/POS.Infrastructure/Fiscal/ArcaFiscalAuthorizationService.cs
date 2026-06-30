@@ -3,19 +3,23 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using POS.Application.Interfaces;
 using POS.Infrastructure.Configuration;
+using POS.Infrastructure.Fiscal.Afip;
 
 namespace POS.Infrastructure.Fiscal;
 
 public sealed class ArcaFiscalAuthorizationService : IFiscalAuthorizationService
 {
     private readonly IOptions<ArcaOptions> _options;
+    private readonly DirectAfipAuthorizationService _directAfip;
     private readonly ILogger<ArcaFiscalAuthorizationService> _logger;
 
     public ArcaFiscalAuthorizationService(
         IOptions<ArcaOptions> options,
+        DirectAfipAuthorizationService directAfip,
         ILogger<ArcaFiscalAuthorizationService> logger)
     {
         _options = options;
+        _directAfip = directAfip;
         _logger = logger;
     }
 
@@ -24,7 +28,7 @@ public sealed class ArcaFiscalAuthorizationService : IFiscalAuthorizationService
         CancellationToken cancellationToken = default)
     {
         var options = _options.Value;
-        if (options.SandboxAutoApprove)
+        if (options.SandboxAutoApprove && !request.IsProduction)
         {
             var voucher = Math.Abs(request.FiscalDocumentId.GetHashCode());
             var cae = $"{voucher:00000000000000}";
@@ -37,6 +41,17 @@ public sealed class ArcaFiscalAuthorizationService : IFiscalAuthorizationService
             };
         }
 
+        if (options.EnableDirectAfip && !string.IsNullOrWhiteSpace(request.CertificateRef))
+            return await _directAfip.AuthorizeAsync(request, cancellationToken);
+
+        return await AuthorizeViaHttpAdapterAsync(request, options, cancellationToken);
+    }
+
+    private async Task<FiscalAuthorizationResult> AuthorizeViaHttpAdapterAsync(
+        FiscalAuthorizationRequest request,
+        ArcaOptions options,
+        CancellationToken cancellationToken)
+    {
         try
         {
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
@@ -49,7 +64,13 @@ public sealed class ArcaFiscalAuthorizationService : IFiscalAuthorizationService
                 request.SaleId,
                 request.FiscalDocumentId,
                 request.TotalAmount,
-                request.CorrelationId
+                request.CorrelationId,
+                request.BuyerTaxId,
+                request.BuyerName,
+                request.OriginalFiscalDocumentId,
+                request.OriginalVoucherNumber,
+                request.IsProduction,
+                Lines = request.Lines
             };
 
             using var response = await client.PostAsJsonAsync(

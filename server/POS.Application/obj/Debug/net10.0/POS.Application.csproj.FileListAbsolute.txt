@@ -13,3 +13,4 @@ C:\proj\punto-facturacion\server\POS.Application\obj\Debug\net10.0\POS.Applicati
 C:\proj\punto-facturacion\server\POS.Application\obj\Debug\net10.0\refint\POS.Application.dll
 C:\proj\punto-facturacion\server\POS.Application\obj\Debug\net10.0\POS.Application.pdb
 C:\proj\punto-facturacion\server\POS.Application\obj\Debug\net10.0\ref\POS.Application.dll
+C:\proj\punto-facturacion\server\POS.Application\obj\Debug\net10.0\POS.Application.sourcelink.json

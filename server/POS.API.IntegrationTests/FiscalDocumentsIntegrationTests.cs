@@ -28,7 +28,7 @@ public sealed class FiscalDocumentsIntegrationTests : IClassFixture<TestWebAppli
 
         var issueRes = await client.PostAsJsonAsync(
             "/api/fiscal-documents/issue",
-            new { saleId, isInvoiceA = true });
+            new { saleId, isInvoiceA = true, buyerTaxId = "30712345678", buyerName = "Cliente Test SA" });
         Assert.Equal(HttpStatusCode.OK, issueRes.StatusCode);
         var issueBody = await issueRes.Content.ReadFromJsonAsync<ApiResponse<FiscalDocumentData>>();
         Assert.NotNull(issueBody);

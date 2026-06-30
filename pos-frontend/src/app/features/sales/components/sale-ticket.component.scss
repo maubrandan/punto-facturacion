@@ -118,6 +118,16 @@
     font-weight: 800;
   }
 
+  .ticket-qr {
+    display: flex;
+    justify-content: center;
+    margin: 8pt 0 4pt;
+  }
+
+  .ticket-qr img {
+    display: block;
+  }
+
   .ticket-footer {
     text-align: center;
     font-size: 7pt;
