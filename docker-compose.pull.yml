@@ -1,4 +1,5 @@
 # Despliegue en Debian sin clonar el repo para compilar: solo pull de imágenes (p. ej. GHCR).
+# Requisito: docker network create proxy-network
 # Tras el workflow "Docker publish", copia este archivo y un .env al servidor y define:
 #   POS_API_IMAGE=ghcr.io/tu-org/tu-repo-pos-api:latest
 #   POS_WEB_IMAGE=ghcr.io/tu-org/tu-repo-pos-web:latest
@@ -22,8 +23,10 @@ services:
       timeout: 5s
       retries: 15
       start_period: 45s
+    networks:
+      - facturacion-net
 
-  api:
+  facturacion-api:
     restart: unless-stopped
     image: ${POS_API_IMAGE:?definir POS_API_IMAGE en .env}
     environment:
@@ -43,14 +46,17 @@ services:
       timeout: 5s
       retries: 5
       start_period: 90s
+    networks:
+      - facturacion-net
+      - proxy-network
 
-  web:
+  facturacion-web:
     restart: unless-stopped
     image: ${POS_WEB_IMAGE:?definir POS_WEB_IMAGE en .env}
-    ports:
-      - "${HTTP_LISTEN_ADDR:-0.0.0.0}:${HTTP_PORT:-8080}:80"
+    expose:
+      - "80"
     depends_on:
-      api:
+      facturacion-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
@@ -58,6 +64,14 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+    networks:
+      - facturacion-net
+      - proxy-network
 
 volumes:
   sql-data:
+
+networks:
+  facturacion-net:
+  proxy-network:
+    external: true

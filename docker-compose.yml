@@ -1,5 +1,5 @@
-# Stack listo para Debian (Docker Engine + plugin compose).
-# Uso: cp .env.example .env && docker compose up -d
+version: '3.8'
+
 services:
   sql:
     restart: unless-stopped
@@ -10,17 +10,15 @@ services:
     volumes:
       - sql-data:/var/opt/mssql
     healthcheck:
-      test:
-        [
-          "CMD-SHELL",
-          "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null || exit 1",
-        ]
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q \"SELECT 1\" -b -o /dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 15
       start_period: 45s
+    networks:
+      - facturacion-net
 
-  api:
+  facturacion-api:
     restart: unless-stopped
     build:
       context: .
@@ -42,16 +40,20 @@ services:
       timeout: 5s
       retries: 5
       start_period: 90s
+    networks:
+      - facturacion-net
+      - proxy-network
 
-  web:
+  facturacion-web:
     restart: unless-stopped
     build:
       context: .
       dockerfile: deploy/docker/web/Dockerfile
-    ports:
-      - "${HTTP_LISTEN_ADDR:-0.0.0.0}:${HTTP_PORT:-8080}:80"
+    # Quitamos los ports públicos y dejamos que escuche internamente en el 80
+    expose:
+      - "80"
     depends_on:
-      api:
+      facturacion-api:
         condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/ >/dev/null || exit 1"]
@@ -59,6 +61,14 @@ services:
       timeout: 3s
       retries: 5
       start_period: 20s
+    networks:
+      - facturacion-net
+      - proxy-network
 
 volumes:
   sql-data:
+
+networks:
+  facturacion-net:
+  proxy-network:
+    external: true
