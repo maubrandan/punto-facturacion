@@ -3,13 +3,14 @@ import { HttpClient } from '@angular/common/http';
 import { map, Observable, tap } from 'rxjs';
 import { UI_DENSITY_LEGACY_STORAGE_KEY } from '../constants/ui-density-storage';
 import { ImpersonationSessionInfo } from '../models/impersonation-session.model';
-import { User } from '../models/user.model';
+import { TENANT_ROLES, type TenantRole, User } from '../models/user.model';
 
 interface RegisterRequest {
   email: string;
   password: string;
   businessName: string;
   fullName?: string;
+  businessType: 'Farmacia' | 'Ferreteria' | 'Kiosco';
 }
 
 interface LoginRequest {
@@ -25,6 +26,7 @@ interface AuthResponse {
   email: string;
   tenantId: string;
   businessType?: string;
+  roles?: string[];
 }
 
 interface ApiErrorBody {
@@ -65,6 +67,12 @@ export class AuthService {
         tap((auth) => this.setSession(auth.accessToken)),
         map((auth) => this.toUser(auth))
       );
+  }
+
+  /** Acepta un JWT de tenant (p. ej. sesión de impersonación de soporte). */
+  acceptTenantAccessToken(accessToken: string): User | null {
+    this.setSession(accessToken);
+    return this.currentUser();
   }
 
   login(payload: LoginRequest): Observable<User> {
@@ -162,7 +170,8 @@ export class AuthService {
         userId,
         email,
         tenantId,
-        businessType: this.normalizeBusinessType(businessTypeRaw)
+        businessType: this.normalizeBusinessType(businessTypeRaw),
+        roles: this.extractRoles(payload)
       };
     } catch {
       return null;
@@ -170,12 +179,46 @@ export class AuthService {
   }
 
   private toUser(auth: AuthResponse): User {
+    const fromBody = (auth.roles ?? [])
+      .map((r) => this.asTenantRole(r))
+      .filter((r): r is TenantRole => r !== null);
+    const fromToken = this.extractUserFromToken(auth.accessToken)?.roles ?? [];
+    const roles = fromBody.length > 0 ? fromBody : fromToken;
     return {
       userId: auth.userId,
       email: auth.email,
       tenantId: auth.tenantId,
-      businessType: this.normalizeBusinessType(auth.businessType ?? null)
+      businessType: this.normalizeBusinessType(auth.businessType ?? null),
+      roles
     };
+  }
+
+  private extractRoles(payload: Record<string, unknown>): TenantRole[] {
+    const roleUri = 'http://schemas.microsoft.com/ws/2008/06/identity/claims/role';
+    const raw = payload['role'] ?? payload['roles'] ?? payload[roleUri];
+    const list: string[] = [];
+    if (typeof raw === 'string') {
+      list.push(raw);
+    } else if (Array.isArray(raw)) {
+      for (const item of raw) {
+        if (typeof item === 'string') {
+          list.push(item);
+        }
+      }
+    }
+    return list.map((r) => this.asTenantRole(r)).filter((r): r is TenantRole => r !== null);
+  }
+
+  private asTenantRole(value: string): TenantRole | null {
+    const v = value.trim();
+    if (
+      v === TENANT_ROLES.Admin ||
+      v === TENANT_ROLES.Cashier ||
+      v === TENANT_ROLES.Stock
+    ) {
+      return v;
+    }
+    return null;
   }
 
   private decodeJwtPayload(token: string): Record<string, unknown> {

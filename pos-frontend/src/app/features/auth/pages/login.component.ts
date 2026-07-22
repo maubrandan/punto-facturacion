@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { Component, computed, inject, signal } from '@angular/core';
 import { FormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
-import { Router } from '@angular/router';
+import { Router, RouterLink } from '@angular/router';
 import { finalize } from 'rxjs';
 import { resolveLoginFailure } from '../../../core/auth/resolve-login-failure';
 import { AuthService } from '../../../core/services/auth.service';
@@ -9,7 +9,7 @@ import { AuthService } from '../../../core/services/auth.service';
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [CommonModule, ReactiveFormsModule],
+  imports: [CommonModule, ReactiveFormsModule, RouterLink],
   template: `
     <div class="min-h-screen bg-slate-950 text-slate-100 flex items-center justify-center px-4">
       <div class="w-full max-w-md rounded-2xl border border-slate-800 bg-slate-900/80 backdrop-blur p-8 shadow-2xl">
@@ -70,6 +70,11 @@ import { AuthService } from '../../../core/services/auth.service';
             }
           </button>
         </form>
+
+        <p class="mt-6 text-center text-sm text-slate-400">
+          ¿Negocio nuevo?
+          <a routerLink="/register" class="text-brand-300 hover:underline">Crear cuenta</a>
+        </p>
       </div>
     </div>
   `

@@ -30,5 +30,7 @@ public sealed class Sale : ITenantEntity
 
     public ICollection<SaleDetail> Details { get; set; } = new List<SaleDetail>();
 
+    public ICollection<SalePayment> Payments { get; set; } = new List<SalePayment>();
+
     public ICollection<FiscalDocument> FiscalDocuments { get; set; } = new List<FiscalDocument>();
 }

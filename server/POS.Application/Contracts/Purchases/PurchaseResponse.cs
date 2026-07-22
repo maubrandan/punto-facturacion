@@ -10,11 +10,15 @@ public sealed class PurchaseLineResponse
 
     public string ProductSku { get; init; } = string.Empty;
 
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
 
     public decimal UnitCost { get; init; }
 
     public decimal Subtotal { get; init; }
+
+    public string? LotNumberSnapshot { get; init; }
+
+    public DateOnly? ExpirationSnapshot { get; init; }
 }
 
 public sealed class PurchaseResponse

@@ -212,4 +212,3 @@ C:\proj\punto-facturacion\server\POS.API\bin\Debug\net10.0\Microsoft.AspNetCore.
 C:\proj\punto-facturacion\server\POS.API\bin\Debug\net10.0\Microsoft.AspNetCore.Authentication.JwtBearer.dll
 C:\proj\punto-facturacion\server\POS.API\bin\Debug\net10.0\FluentValidation.dll
 C:\proj\punto-facturacion\server\POS.API\obj\Debug\net10.0\POS.API.sourcelink.json
-C:\proj\punto-facturacion\server\POS.API\obj\Debug\net10.0\staticwebassets.upToDateCheck.txt

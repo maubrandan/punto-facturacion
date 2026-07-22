@@ -55,6 +55,32 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
             return Result<FiscalDocumentResponse>.Failure("fiscal.tenant_required", "No se pudo resolver el tenant actual.");
         }
 
+        var buyerTaxIdInput = command.BuyerTaxId;
+        var buyerNameInput = command.BuyerName;
+        if (command.CustomerId is Guid customerId)
+        {
+            var customer = await _db.Customers.AsNoTracking()
+                .FirstOrDefaultAsync(c => c.Id == customerId, cancellationToken);
+            if (customer is null)
+            {
+                return Result<FiscalDocumentResponse>.Failure(
+                    "fiscal.customer_not_found",
+                    "El cliente seleccionado no existe en este negocio.");
+            }
+
+            buyerTaxIdInput = customer.TaxId;
+            if (string.IsNullOrWhiteSpace(buyerNameInput))
+                buyerNameInput = customer.Name;
+
+            var cuitDigits = NormalizeOptional(buyerTaxIdInput);
+            if (cuitDigits is null || cuitDigits.Length != 11)
+            {
+                return Result<FiscalDocumentResponse>.Failure(
+                    "fiscal.validation",
+                    "El cliente seleccionado no tiene un CUIT de 11 dígitos válido para Factura A.");
+            }
+        }
+
         var sale = await _db.Sales
             .Include(s => s.Details)
             .FirstOrDefaultAsync(s => s.Id == command.SaleId && s.TenantId == tenantId, cancellationToken);
@@ -93,8 +119,8 @@ public sealed class IssueElectronicInvoiceHandler : IIssueElectronicInvoiceHandl
         }
 
         var now = DateTime.UtcNow;
-        var buyerTaxId = NormalizeOptional(command.BuyerTaxId);
-        var buyerName = command.BuyerName?.Trim();
+        var buyerTaxId = NormalizeOptional(buyerTaxIdInput);
+        var buyerName = buyerNameInput?.Trim();
         var document = existing ?? new FiscalDocument
         {
             Id = Guid.NewGuid(),

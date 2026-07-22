@@ -18,7 +18,11 @@ public sealed class JwtTokenService : IJwtTokenService
 
     public JwtTokenService(IOptions<JwtOptions> options) => _opt = options.Value;
 
-    public string CreateToken(ApplicationUser user, CancellationToken cancellationToken = default)
+    public string CreateToken(
+        ApplicationUser user,
+        string businessType,
+        IReadOnlyList<string> tenantRoles,
+        CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrEmpty(user.TenantId))
             throw new InvalidOperationException("El usuario no tiene TenantId; no se puede emitir un JWT multi-tenant.");
@@ -27,6 +31,10 @@ public sealed class JwtTokenService : IJwtTokenService
         if (keyBytes.Length < 32)
             throw new InvalidOperationException("Jwt:SigningKey debe tener al menos 32 bytes (256 bits) para HS256.");
 
+        var rubro = string.IsNullOrWhiteSpace(businessType)
+            ? (string.IsNullOrWhiteSpace(user.BusinessType) ? BusinessTypeNames.Kiosco : user.BusinessType)
+            : businessType.Trim();
+
         var claims = new List<Claim>
         {
             new(JwtRegisteredClaimNames.Sub, user.Id),
@@ -34,9 +42,12 @@ public sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Email, user.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Email, user.Email ?? string.Empty),
             new(CurrentUserService.TenantIdClaimType, user.TenantId),
-            new("business_type", user.BusinessType),
+            new("business_type", rubro),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
+
+        foreach (var role in tenantRoles.Where(r => !string.IsNullOrWhiteSpace(r)).Distinct(StringComparer.Ordinal))
+            claims.Add(new Claim(ClaimTypes.Role, role));
 
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(keyBytes),
@@ -107,6 +118,7 @@ public sealed class JwtTokenService : IJwtTokenService
     public string CreateImpersonationToken(
         ApplicationUser platformOperator,
         string targetTenantId,
+        string businessType,
         string reason,
         int ttlMinutes,
         CancellationToken cancellationToken = default)
@@ -123,6 +135,9 @@ public sealed class JwtTokenService : IJwtTokenService
 
         var ttl = Math.Clamp(ttlMinutes, 1, 60);
         var reasonTrimmed = string.IsNullOrWhiteSpace(reason) ? string.Empty : reason.Trim();
+        var rubro = string.IsNullOrWhiteSpace(businessType)
+            ? BusinessTypeNames.Kiosco
+            : businessType.Trim();
 
         var claims = new List<Claim>
         {
@@ -131,7 +146,8 @@ public sealed class JwtTokenService : IJwtTokenService
             new(ClaimTypes.Email, platformOperator.Email ?? string.Empty),
             new(JwtRegisteredClaimNames.Email, platformOperator.Email ?? string.Empty),
             new(CurrentUserService.TenantIdClaimType, targetTenantId.Trim()),
-            new("business_type", platformOperator.BusinessType),
+            new("business_type", rubro),
+            new(ClaimTypes.Role, Domain.Tenant.TenantRoleNames.Admin),
             new(PlatformClaimTypes.Impersonation, "true"),
             new(PlatformClaimTypes.ImpersonationReason, TruncateReason(reasonTrimmed, 200)),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())

@@ -22,4 +22,9 @@ public class ApplicationUser : IdentityUser, ITenantEntity
     /// Bloqueo impuesto por operadores de plataforma (independiente del lockout por intentos de Identity).
     /// </summary>
     public bool BlockedByPlatform { get; set; }
+
+    /// <summary>
+    /// Bloqueo impuesto por un administrador del tenant (independiente de <see cref="BlockedByPlatform"/>).
+    /// </summary>
+    public bool BlockedByTenant { get; set; }
 }

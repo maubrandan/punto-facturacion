@@ -6,7 +6,7 @@ public sealed class SaleLineResponse
 
     public Guid ProductId { get; init; }
 
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
 
     public decimal LineNetSubtotal { get; init; }
 
@@ -19,6 +19,15 @@ public sealed class SaleLineResponse
     public string ProductName { get; init; } = string.Empty;
 
     public string ProductExtendedDataJson { get; init; } = "{}";
+}
+
+public sealed class SalePaymentResponse
+{
+    public Guid Id { get; init; }
+
+    public int Method { get; init; }
+
+    public decimal Amount { get; init; }
 }
 
 public sealed class SaleResponse
@@ -34,4 +43,6 @@ public sealed class SaleResponse
     public decimal TotalAmount { get; init; }
 
     public IReadOnlyList<SaleLineResponse> Lines { get; init; } = Array.Empty<SaleLineResponse>();
+
+    public IReadOnlyList<SalePaymentResponse> Payments { get; init; } = Array.Empty<SalePaymentResponse>();
 }

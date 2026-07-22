@@ -4,9 +4,13 @@ public sealed class CreatePurchaseLineRequest
 {
     public Guid ProductId { get; init; }
 
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
 
     public decimal UnitCost { get; init; }
+
+    public string? LotNumber { get; init; }
+
+    public DateOnly? ExpirationDate { get; init; }
 }
 
 public sealed class CreatePurchaseRequest

@@ -98,7 +98,8 @@ public sealed class FiscalDocumentsIntegrationTests : IClassFixture<TestWebAppli
             "/api/sales",
             new
             {
-                lines = new[] { new { productId = productBody!.Data!.Id, quantity = 1 } }
+                lines = new[] { new { productId = productBody!.Data!.Id, quantity = 1 } },
+                payments = new[] { new { method = 0, amount = 121m } }
             });
         Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
         var saleBody = await saleRes.Content.ReadFromJsonAsync<ApiResponse<SaleData>>();

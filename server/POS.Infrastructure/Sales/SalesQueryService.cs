@@ -92,6 +92,17 @@ public sealed class SalesQueryService : ISalesQueryService
                                 LineTaxAmount = d.LineTaxAmount,
                                 LineTotal = d.LineNetSubtotal + d.LineTaxAmount
                             })
+                        .ToList(),
+                    Payments = s.Payments
+                        .OrderBy(p => p.CreatedAt)
+                        .ThenBy(p => p.Id)
+                        .Select(
+                            p => new SalePaymentResponse
+                            {
+                                Id = p.Id,
+                                Method = (int)p.Method,
+                                Amount = p.Amount
+                            })
                         .ToList()
                 })
             .FirstOrDefaultAsync(cancellationToken);
@@ -125,6 +136,7 @@ public sealed class SalesQueryService : ISalesQueryService
             TotalAmount = sale.TotalAmount,
             CreatedByUserName = sale.CreatedByUserName,
             Lines = sale.Lines,
+            Payments = sale.Payments,
             FiscalDocuments = fiscalDocuments
                 .Select(d => FiscalDocumentMapper.ToResponse(d, profileTaxId))
                 .ToList()

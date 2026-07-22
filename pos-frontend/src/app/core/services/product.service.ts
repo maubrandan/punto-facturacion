@@ -10,7 +10,18 @@ export interface ProductUpsertDto {
   barcode: string;
   netPrice: number;
   taxRate: number;
-  stock: number;
+  stock?: number;
+  extendedDataJson?: string;
+  lotNumber?: string;
+  expirationDate?: string;
+}
+
+export interface ProductUpdateDto {
+  name: string;
+  sku: string;
+  barcode: string;
+  netPrice: number;
+  taxRate: number;
   extendedDataJson?: string;
 }
 
@@ -88,7 +99,7 @@ export class ProductService {
       );
   }
 
-  update(id: string, payload: ProductUpsertDto): Observable<RequestResult<Product>> {
+  update(id: string, payload: ProductUpdateDto): Observable<RequestResult<Product>> {
     return this.http
       .put<ApiResponse<Product>>(`${this.apiBaseUrl}/${id}`, payload)
       .pipe(

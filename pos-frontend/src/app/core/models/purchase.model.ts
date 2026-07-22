@@ -6,6 +6,8 @@ export interface PurchaseLine {
   quantity: number;
   unitCost: number;
   subtotal: number;
+  lotNumberSnapshot?: string | null;
+  expirationSnapshot?: string | null;
 }
 
 export interface Purchase {
@@ -31,6 +33,8 @@ export interface CreatePurchaseLineDto {
   productId: string;
   quantity: number;
   unitCost: number;
+  lotNumber?: string | null;
+  expirationDate?: string | null;
 }
 
 export interface CreatePurchaseDto {

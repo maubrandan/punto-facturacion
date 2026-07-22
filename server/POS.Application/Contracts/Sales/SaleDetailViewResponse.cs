@@ -12,7 +12,7 @@ public sealed class SaleDetailLineViewResponse
 
     public string ProductExtendedDataJson { get; init; } = "{}";
 
-    public int Quantity { get; init; }
+    public decimal Quantity { get; init; }
 
     public decimal LineNetSubtotal { get; init; }
 
@@ -36,6 +36,8 @@ public sealed class SaleDetailViewResponse
     public string? CreatedByUserName { get; init; }
 
     public IReadOnlyList<SaleDetailLineViewResponse> Lines { get; init; } = Array.Empty<SaleDetailLineViewResponse>();
+
+    public IReadOnlyList<SalePaymentResponse> Payments { get; init; } = Array.Empty<SalePaymentResponse>();
 
     public IReadOnlyList<FiscalDocumentResponse> FiscalDocuments { get; init; } = Array.Empty<FiscalDocumentResponse>();
 }

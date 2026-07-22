@@ -80,7 +80,7 @@ public sealed class PlatformTenantsController : ControllerBase
         [FromBody] CreateTenantApiRequest request,
         CancellationToken cancellationToken)
     {
-        var cmd = new CreatePlatformTenantCommand(request.Name, request.ContactEmail);
+        var cmd = new CreatePlatformTenantCommand(request.Name, request.ContactEmail, request.BusinessType);
         var result = await _lifecycle.CreateAsync(cmd, cancellationToken);
         var body = ApiResponse<TenantDetailDto>.FromResult(result);
         if (!result.IsSuccess)

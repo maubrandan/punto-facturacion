@@ -82,6 +82,7 @@ public sealed class ImpersonationSessionService : IImpersonationSessionService
         var token = _jwt.CreateImpersonationToken(
             platformUser,
             tenant.Id,
+            tenant.BusinessType,
             command.Reason.Trim(),
             command.TtlMinutes,
             cancellationToken);

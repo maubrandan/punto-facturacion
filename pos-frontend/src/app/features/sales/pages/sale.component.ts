@@ -1,20 +1,25 @@
 import { DecimalPipe } from '@angular/common';
 import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
-import { finalize } from 'rxjs';
+import { finalize, firstValueFrom } from 'rxjs';
 import type { FiscalDocumentView } from '../../../core/models/fiscal.model';
 import { fiscalStatusLabel, isFiscalAuthorized } from '../../../core/models/fiscal.model';
 import { Product } from '../../../core/models/product.model';
 import { AuthService } from '../../../core/services/auth.service';
+import { CustomerService } from '../../../core/services/customer.service';
 import { FiscalService } from '../../../core/services/fiscal.service';
+import { InventoryService } from '../../../core/services/inventory.service';
 import { ProductService } from '../../../core/services/product.service';
+import type { Customer } from '../../../core/models/customer.model';
 import {
   CreateSaleLineDto,
+  CreateSalePaymentDto,
   type SaleDetailView,
   saleResponseToDetailView,
   SaleService
 } from '../../../core/services/sale.service';
 import { SaleTicketComponent } from '../components/sale-ticket.component';
+import { PAYMENT_METHOD } from '../../../core/models/payment.model';
 
 export interface SaleItem {
   productId: string;
@@ -23,7 +28,11 @@ export interface SaleItem {
   netPrice: number;
   taxRate: number;
   quantity: number;
+  stockLotId?: string | null;
+  lotLabel?: string | null;
 }
+
+type PayMode = 'cash' | 'card' | 'transfer' | 'split';
 
 const BARCODE_LIKE = /^\d{8,14}$/;
 
@@ -103,10 +112,48 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                 <dd>{{ total() | number: '1.2-2' }}</dd>
               </div>
             </dl>
+
+            <div class="mt-4 space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cobro</p>
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                @for (opt of paymentOptions; track opt.value) {
+                  <button
+                    type="button"
+                    class="rounded-lg border px-2 py-1.5 text-xs transition"
+                    [class.border-brand-500]="payMode() === opt.value"
+                    [class.bg-brand-500/20]="payMode() === opt.value"
+                    [class.text-slate-100]="payMode() === opt.value"
+                    [class.border-slate-700]="payMode() !== opt.value"
+                    [class.text-slate-400]="payMode() !== opt.value"
+                    (click)="payMode.set(opt.value)"
+                  >
+                    {{ opt.label }}
+                  </button>
+                }
+              </div>
+              @if (payMode() === 'split') {
+                <div>
+                  <label class="text-xs text-slate-500" for="cashPart">Efectivo</label>
+                  <input
+                    id="cashPart"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="input-brand mt-1 w-full"
+                    [value]="splitCashAmount()"
+                    (input)="onSplitCash($event)"
+                  />
+                  <p class="mt-1 text-xs text-slate-500">
+                    Tarjeta: {{ splitCardAmount() | number: '1.2-2' }}
+                  </p>
+                </div>
+              }
+            </div>
+
             <button
               type="button"
               class="btn-primary mt-4 w-full"
-              [disabled]="items().length === 0 || saleService.saving()"
+              [disabled]="items().length === 0 || saleService.saving() || !paymentsValid()"
               (click)="confirmSale()"
             >
               @if (saleService.saving()) { Registrando... } @else { Confirmar venta }
@@ -158,11 +205,34 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                       <summary class="cursor-pointer text-brand-300">Factura A (con CUIT)</summary>
                       <div class="mt-2 space-y-2">
                         <input
+                          type="search"
+                          class="input-brand"
+                          placeholder="Buscar cliente (nombre o CUIT)"
+                          [value]="customerQuery()"
+                          (input)="onCustomerQuery($event)"
+                        />
+                        @if (customerSuggestions().length > 0) {
+                          <ul class="max-h-32 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 text-xs">
+                            @for (c of customerSuggestions(); track c.id) {
+                              <li>
+                                <button
+                                  type="button"
+                                  class="block w-full px-2 py-1.5 text-left hover:bg-slate-800"
+                                  (click)="selectCustomer(c)"
+                                >
+                                  <span class="font-medium text-slate-100">{{ c.name }}</span>
+                                  <span class="ml-1 text-slate-500">{{ c.taxId }}</span>
+                                </button>
+                              </li>
+                            }
+                          </ul>
+                        }
+                        <input
                           type="text"
                           class="input-brand"
                           placeholder="CUIT comprador (11 dígitos)"
                           [value]="buyerTaxId()"
-                          (input)="buyerTaxId.set(($any($event.target)).value)"
+                          (input)="onBuyerTaxId($event)"
                         />
                         <input
                           type="text"
@@ -224,11 +294,16 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                   </tr>
                 </thead>
                 <tbody>
-                  @for (row of items(); track row.productId) {
+                  @for (row of items(); track trackLine(row)) {
                     <tr class="border-b border-slate-800/70 text-slate-200">
                       <td class="py-3 pr-3">
                         <p class="font-medium text-slate-100">{{ row.name }}</p>
-                        <p class="text-xs text-slate-500">SKU {{ row.sku }} · IVA {{ row.taxRate }}%</p>
+                        <p class="text-xs text-slate-500">
+                          SKU {{ row.sku }} · IVA {{ row.taxRate }}%
+                          @if (row.lotLabel) {
+                            · Lote {{ row.lotLabel }}
+                          }
+                        </p>
                       </td>
                       <td class="py-3 pr-3">{{ row.netPrice | number: '1.2-2' }}</td>
                       <td class="py-3 pr-3">
@@ -236,7 +311,7 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                           <button
                             type="button"
                             class="btn-secondary-sm px-2"
-                            (click)="addQuantity(row.productId, -1)"
+                            (click)="addQuantity(row.productId, -1, row.stockLotId)"
                             aria-label="Menos"
                           >
                             −
@@ -245,7 +320,7 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                           <button
                             type="button"
                             class="btn-secondary-sm px-2"
-                            (click)="addQuantity(row.productId, 1)"
+                            (click)="addQuantity(row.productId, 1, row.stockLotId)"
                             aria-label="Más"
                           >
                             +
@@ -271,6 +346,16 @@ export class SaleComponent implements OnInit {
   readonly saleService = inject(SaleService);
   readonly fiscalService = inject(FiscalService);
   private readonly authService = inject(AuthService);
+  private readonly inventoryService = inject(InventoryService);
+  private readonly customerService = inject(CustomerService);
+
+  readonly isFarmacia = computed(
+    () => this.authService.currentUser()?.businessType === 'farmacia'
+  );
+
+  readonly qtyStep = computed(() =>
+    this.authService.currentUser()?.businessType === 'ferreteria' ? 0.001 : 1
+  );
 
   readonly fiscalProfileReady = signal(false);
   readonly fiscalProfileChecked = signal(false);
@@ -278,6 +363,34 @@ export class SaleComponent implements OnInit {
   readonly fiscalError = signal<string | null>(null);
   readonly buyerTaxId = signal('');
   readonly buyerName = signal('');
+  readonly selectedCustomerId = signal<string | null>(null);
+  readonly customerQuery = signal('');
+  readonly customerSuggestions = signal<readonly Customer[]>([]);
+  private customerSearchSeq = 0;
+
+  readonly payMode = signal<PayMode>('cash');
+  readonly splitCashAmount = signal(0);
+  readonly paymentOptions: ReadonlyArray<{ value: PayMode; label: string }> = [
+    { value: 'cash', label: 'Efectivo' },
+    { value: 'card', label: 'Tarjeta' },
+    { value: 'transfer', label: 'Transfer.' },
+    { value: 'split', label: 'Mixto' }
+  ];
+
+  readonly splitCardAmount = computed(() => {
+    const total = Math.round(this.total() * 100) / 100;
+    const cash = Math.round(this.splitCashAmount() * 100) / 100;
+    return Math.round((total - cash) * 100) / 100;
+  });
+
+  readonly paymentsValid = computed(() => {
+    if (this.payMode() !== 'split') {
+      return this.total() > 0;
+    }
+    const cash = this.splitCashAmount();
+    const card = this.splitCardAmount();
+    return cash > 0 && card > 0;
+  });
 
   readonly fiscalStatusLabel = fiscalStatusLabel;
   readonly isFiscalAuthorized = isFiscalAuthorized;
@@ -398,8 +511,41 @@ export class SaleComponent implements OnInit {
     this.lastFiscalDoc.set(null);
     this.fiscalError.set(null);
     this.searchHint.set(null);
+
+    if (this.isFarmacia()) {
+      void this.addPharmacyProduct(p);
+      return;
+    }
+
+    this.mergeLine(p, null, null);
+  }
+
+  private async addPharmacyProduct(p: Product): Promise<void> {
+    try {
+      const lots = await firstValueFrom(this.inventoryService.getLots(p.id));
+      const available = lots.filter((l) => !l.isExpired && l.quantity > 0);
+      if (available.length === 0) {
+        this.saleError.set('No hay lotes con stock disponible para este producto.');
+        return;
+      }
+      const lot = available[0]!;
+      if (available.length > 1) {
+        this.searchHint.set(
+          `Se usó el lote ${lot.lotNumber} (vence ${lot.expirationDate}). Hay ${available.length} lotes.`
+        );
+      }
+      this.mergeLine(p, lot.id, `${lot.lotNumber} · vence ${lot.expirationDate}`);
+    } catch (e: unknown) {
+      this.saleError.set(e instanceof Error ? e.message : 'No se pudieron cargar los lotes.');
+    }
+  }
+
+  private mergeLine(p: Product, stockLotId: string | null, lotLabel: string | null): void {
     this.items.update((rows) => {
-      const i = rows.findIndex((r) => r.productId === p.id);
+      const i = rows.findIndex(
+        (r) => r.productId === p.id && (r.stockLotId ?? null) === (stockLotId ?? null)
+      );
+      const step = this.qtyStep();
       if (i < 0) {
         return [
           ...rows,
@@ -409,29 +555,41 @@ export class SaleComponent implements OnInit {
             sku: p.sku,
             netPrice: p.netPrice,
             taxRate: p.taxRate,
-            quantity: 1
+            quantity: step < 1 ? step : 1,
+            stockLotId,
+            lotLabel
           }
         ];
       }
       const next = [...rows];
-      const row = { ...next[i]!, quantity: next[i]!.quantity + 1 };
+      const row = { ...next[i]!, quantity: next[i]!.quantity + (step < 1 ? step : 1) };
       next[i] = row;
       return next;
     });
   }
 
-  addQuantity(productId: string, delta: number): void {
+  trackLine(row: SaleItem): string {
+    return `${row.productId}:${row.stockLotId ?? ''}`;
+  }
+
+  addQuantity(productId: string, delta: number, stockLotId?: string | null): void {
+    const step = this.qtyStep();
+    const applied = delta * (step < 1 ? step : 1);
     this.items.update((rows) => {
-      const i = rows.findIndex((r) => r.productId === productId);
+      const i = rows.findIndex(
+        (r) => r.productId === productId && (r.stockLotId ?? null) === (stockLotId ?? null)
+      );
       if (i < 0) {
         return rows;
       }
-      const q = rows[i]!.quantity + delta;
+      const q = rows[i]!.quantity + applied;
       if (q <= 0) {
-        return rows.filter((r) => r.productId !== productId);
+        return rows.filter(
+          (r) => !(r.productId === productId && (r.stockLotId ?? null) === (stockLotId ?? null))
+        );
       }
       const next = [...rows];
-      next[i] = { ...rows[i]!, quantity: q };
+      next[i] = { ...rows[i]!, quantity: Math.round(q * 1000) / 1000 };
       return next;
     });
   }
@@ -448,12 +606,18 @@ export class SaleComponent implements OnInit {
     this.fiscalError.set(null);
     const lines: CreateSaleLineDto[] = this.items().map((it) => ({
       productId: it.productId,
-      quantity: it.quantity
+      quantity: it.quantity,
+      stockLotId: it.stockLotId ?? null
     }));
     if (lines.length === 0) {
       return;
     }
-    const result = await this.saleService.createAndRefreshProducts({ lines });
+    const payments = this.buildPayments();
+    if (payments.length === 0) {
+      this.saleError.set('Indique un cobro válido.');
+      return;
+    }
+    const result = await this.saleService.createAndRefreshProducts({ lines, payments });
     if (result.success && result.data) {
       this.lastSaleId.set(result.data.id);
       this.lastTicketDetail.set(
@@ -464,9 +628,42 @@ export class SaleComponent implements OnInit {
       );
       this.items.set([]);
       this.searchText.set('');
+      this.payMode.set('cash');
+      this.splitCashAmount.set(0);
     } else {
       this.saleError.set(result.error?.message ?? 'No se pudo registrar la venta.');
     }
+  }
+
+  onSplitCash(e: Event): void {
+    const v = Number((e.target as HTMLInputElement).value);
+    this.splitCashAmount.set(Number.isFinite(v) ? v : 0);
+  }
+
+  private buildPayments(): CreateSalePaymentDto[] {
+    const total = Math.round(this.total() * 100) / 100;
+    if (total <= 0) {
+      return [];
+    }
+    const mode = this.payMode();
+    if (mode === 'cash') {
+      return [{ method: PAYMENT_METHOD.Cash, amount: total }];
+    }
+    if (mode === 'card') {
+      return [{ method: PAYMENT_METHOD.Card, amount: total }];
+    }
+    if (mode === 'transfer') {
+      return [{ method: PAYMENT_METHOD.Transfer, amount: total }];
+    }
+    const cash = Math.round(this.splitCashAmount() * 100) / 100;
+    const card = Math.round((total - cash) * 100) / 100;
+    if (cash <= 0 || card <= 0) {
+      return [];
+    }
+    return [
+      { method: PAYMENT_METHOD.Cash, amount: cash },
+      { method: PAYMENT_METHOD.Card, amount: card }
+    ];
   }
 
   async issueFacturaB(): Promise<void> {
@@ -496,7 +693,8 @@ export class SaleComponent implements OnInit {
       saleId,
       isInvoiceA: true,
       buyerTaxId: this.buyerTaxId().trim() || null,
-      buyerName: this.buyerName().trim() || null
+      buyerName: this.buyerName().trim() || null,
+      customerId: this.selectedCustomerId()
     });
     if (result.success && result.data) {
       this.lastFiscalDoc.set(result.data);
@@ -505,6 +703,45 @@ export class SaleComponent implements OnInit {
     this.fiscalError.set(result.error?.message ?? 'No se pudo emitir la factura.');
     if (result.data) {
       this.lastFiscalDoc.set(result.data);
+    }
+  }
+
+  onCustomerQuery(e: Event): void {
+    const q = (e.target as HTMLInputElement).value;
+    this.customerQuery.set(q);
+    void this.searchCustomers(q);
+  }
+
+  onBuyerTaxId(e: Event): void {
+    this.buyerTaxId.set((e.target as HTMLInputElement).value);
+    this.selectedCustomerId.set(null);
+  }
+
+  selectCustomer(c: Customer): void {
+    this.selectedCustomerId.set(c.id);
+    this.buyerTaxId.set(c.taxId);
+    this.buyerName.set(c.name);
+    this.customerQuery.set(`${c.name} (${c.taxId})`);
+    this.customerSuggestions.set([]);
+  }
+
+  private async searchCustomers(q: string): Promise<void> {
+    const term = q.trim();
+    if (term.length < 2) {
+      this.customerSuggestions.set([]);
+      return;
+    }
+    const seq = ++this.customerSearchSeq;
+    try {
+      const rows = await firstValueFrom(this.customerService.getAll(term));
+      if (seq !== this.customerSearchSeq) {
+        return;
+      }
+      this.customerSuggestions.set(rows.slice(0, 8));
+    } catch {
+      if (seq === this.customerSearchSeq) {
+        this.customerSuggestions.set([]);
+      }
     }
   }
 

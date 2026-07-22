@@ -39,7 +39,10 @@ import { PurchaseSummary } from '../../../core/models/purchase.model';
               </thead>
               <tbody>
                 @for (p of items(); track p.id) {
-                  <tr class="border-b border-slate-800/70 text-slate-200">
+                  <tr
+                    class="border-b border-slate-800/70 text-slate-200 cursor-pointer hover:bg-slate-800/40"
+                    [routerLink]="['/compras', p.id]"
+                  >
                     <td class="py-2 pr-3 whitespace-nowrap">
                       {{ p.date | date: 'dd/MM/yyyy HH:mm' : 'UTC' }}
                     </td>

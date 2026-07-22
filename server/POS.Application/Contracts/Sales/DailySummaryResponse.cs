@@ -11,5 +11,5 @@ public sealed class DailySummaryResponse
 
     public string? TopProductName { get; init; }
 
-    public int TopProductUnits { get; init; }
+    public decimal TopProductUnits { get; init; }
 }

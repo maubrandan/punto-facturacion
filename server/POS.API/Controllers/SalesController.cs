@@ -4,13 +4,14 @@ using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Sales;
 using POS.Application.Interfaces;
+using POS.Application.Platform;
 using POS.Application.Sales;
 
 namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
 public sealed class SalesController : ControllerBase
 {
     private readonly ICreateSaleHandler _createSaleHandler;
@@ -74,7 +75,10 @@ public sealed class SalesController : ControllerBase
     {
         var command = new CreateSaleCommand(
             request.Lines
-                .Select(l => new CreateSaleLineCommand(l.ProductId, l.Quantity))
+                .Select(l => new CreateSaleLineCommand(l.ProductId, l.Quantity, l.StockLotId))
+                .ToList(),
+            (request.Payments ?? Array.Empty<CreateSalePaymentRequest>())
+                .Select(p => new CreateSalePaymentCommand(p.Method, p.Amount))
                 .ToList());
 
         var result = await _createSaleHandler.HandleAsync(command, cancellationToken);

@@ -8,12 +8,16 @@ using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using POS.Application.Platform;
 using POS.Domain.Platform;
+using POS.Domain.Tenant;
 using POS.Infrastructure.Persistence;
+using POS.Infrastructure.Platform;
 using POS.Infrastructure.Services;
+using POS.Infrastructure.TenantUsers;
 using Xunit;
 
 namespace POS.API.IntegrationTests;
@@ -67,6 +71,11 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
         var db = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
         await db.Database.EnsureDeletedAsync();
         await db.Database.EnsureCreatedAsync();
+
+        var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("TestInit");
+        await PlatformRoleSeeder.EnsurePlatformRolesAsync(roleManager, logger);
+        await TenantRoleSeeder.EnsureTenantRolesAsync(roleManager, logger);
     }
 
     public new async Task DisposeAsync()
@@ -111,6 +120,7 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
             {
                 var tenantId = Request.Headers["X-Test-TenantId"].FirstOrDefault() ?? "tenant-a";
                 claims.Add(new Claim(CurrentUserService.TenantIdClaimType, tenantId));
+                claims.Add(new Claim(ClaimTypes.Role, TenantRoleNames.Admin));
                 claims.Add(new Claim(PlatformClaimTypes.Impersonation, "true"));
                 var impReason = Request.Headers["X-Test-ImpersonationReason"].FirstOrDefault() ?? "test";
                 claims.Add(new Claim(PlatformClaimTypes.ImpersonationReason, impReason));
@@ -129,6 +139,16 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
             {
                 var tenantId = Request.Headers["X-Test-TenantId"].FirstOrDefault() ?? "tenant-a";
                 claims.Add(new Claim(CurrentUserService.TenantIdClaimType, tenantId));
+                var rolesHeader = Request.Headers["X-Test-Roles"].FirstOrDefault();
+                if (string.IsNullOrWhiteSpace(rolesHeader))
+                {
+                    claims.Add(new Claim(ClaimTypes.Role, TenantRoleNames.Admin));
+                }
+                else
+                {
+                    foreach (var role in rolesHeader.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+                        claims.Add(new Claim(ClaimTypes.Role, role));
+                }
             }
 
             var identity = new ClaimsIdentity(claims, TestAuthScheme);

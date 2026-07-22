@@ -91,6 +91,8 @@ export class AdminPageComponent {
   });
 
   readonly quickLinks: ReadonlyArray<{ path: string; title: string; hint: string }> = [
+    { path: '/admin/usuarios', title: 'Usuarios y roles', hint: 'Alta de cajeros, stock y administradores' },
+    { path: '/clientes', title: 'Clientes', hint: 'Directorio y CUIT para Factura A' },
     { path: '/admin/fiscal', title: 'Facturación electrónica', hint: 'CUIT, punto de venta y certificados ARCA' },
     { path: '/inventario', title: 'Inventario', hint: 'Productos y stock del negocio' },
     { path: '/proveedores', title: 'Proveedores', hint: 'Directorio para compras' },

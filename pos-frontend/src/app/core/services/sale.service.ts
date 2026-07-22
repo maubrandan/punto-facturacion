@@ -8,10 +8,17 @@ import { ProductService, RequestResult } from './product.service';
 export interface CreateSaleLineDto {
   productId: string;
   quantity: number;
+  stockLotId?: string | null;
+}
+
+export interface CreateSalePaymentDto {
+  method: number;
+  amount: number;
 }
 
 export interface CreateSaleDto {
   lines: CreateSaleLineDto[];
+  payments: CreateSalePaymentDto[];
 }
 
 export interface SaleLineResponse {
@@ -60,7 +67,14 @@ export interface SaleDetailView {
   totalAmount: number;
   createdByUserName: string | null;
   lines: SaleDetailLineView[];
+  payments: SalePaymentView[];
   fiscalDocuments?: FiscalDocumentView[];
+}
+
+export interface SalePaymentView {
+  id: string;
+  method: number;
+  amount: number;
 }
 
 export interface DailySummaryResult {
@@ -78,6 +92,7 @@ export interface SaleResponse {
   totalTax: number;
   totalAmount: number;
   lines: SaleLineResponse[];
+  payments: SalePaymentView[];
 }
 
 /**
@@ -96,6 +111,7 @@ export function saleResponseToDetailView(
     totalAmount: s.totalAmount,
     createdByUserName,
     fiscalDocuments: [],
+    payments: s.payments ?? [],
     lines: s.lines.map((l) => ({
       id: l.id,
       productId: l.productId,

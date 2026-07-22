@@ -6,6 +6,8 @@ using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Products;
 using POS.Application.Interfaces;
+using POS.Application.Inventory;
+using POS.Application.Platform;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
 
@@ -18,18 +20,25 @@ public sealed class ProductsController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
     private readonly ITenantEntitlementGuard _entitlements;
+    private readonly IStockPolicyFactory _policyFactory;
+    private readonly ICurrentUserService _currentUser;
 
-    public ProductsController(ApplicationDbContext db, ITenantEntitlementGuard entitlements)
+    public ProductsController(
+        ApplicationDbContext db,
+        ITenantEntitlementGuard entitlements,
+        IStockPolicyFactory policyFactory,
+        ICurrentUserService currentUser)
     {
         _db = db;
         _entitlements = entitlements;
+        _policyFactory = policyFactory;
+        _currentUser = currentUser;
     }
 
     [HttpGet]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProductResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> Get(CancellationToken cancellationToken)
     {
-        // El filtro global multi-tenant de DbContext aplica automáticamente por TenantId.
         var entities = await _db.Products
             .AsNoTracking()
             .OrderByDescending(p => p.CreatedAt)
@@ -40,7 +49,6 @@ public sealed class ProductsController : ControllerBase
         return Ok(ApiResponse<IReadOnlyList<ProductResponse>>.FromResult(result));
     }
 
-    /// <summary>Productos con menor stock del tenant (por defecto 5, máx. 20).</summary>
     [HttpGet("low-stock")]
     [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<ProductResponse>>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetLowStock(
@@ -82,6 +90,7 @@ public sealed class ProductsController : ControllerBase
     }
 
     [HttpPost]
+    [Authorize(Policy = AuthorizationPolicies.TenantStockOrAdmin)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status400BadRequest)]
     public async Task<IActionResult> Create(
@@ -97,6 +106,7 @@ public sealed class ProductsController : ControllerBase
     }
 
     [HttpPut("{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.TenantStockOrAdmin)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ApiResponse<ProductResponse>), StatusCodes.Status404NotFound)]
@@ -119,6 +129,7 @@ public sealed class ProductsController : ControllerBase
     }
 
     [HttpDelete("{id:guid}")]
+    [Authorize(Policy = AuthorizationPolicies.TenantStockOrAdmin)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<object?>), StatusCodes.Status404NotFound)]
     public async Task<IActionResult> Delete(Guid id, CancellationToken cancellationToken)
@@ -139,10 +150,12 @@ public sealed class ProductsController : ControllerBase
             request.Name,
             request.SKU,
             request.NetPrice,
-            request.TaxRate,
-            request.Stock);
+            request.TaxRate);
         if (validationError is not null)
             return Result<ProductResponse>.Failure("product.validation", validationError);
+
+        if (request.Stock < 0m)
+            return Result<ProductResponse>.Failure("product.validation", "El stock inicial no puede ser negativo.");
 
         var quotaCheck = await _entitlements.EnsureCanCreateProductAsync(cancellationToken);
         if (!quotaCheck.IsSuccess)
@@ -152,36 +165,74 @@ public sealed class ProductsController : ControllerBase
                 quotaCheck.Error!);
         }
 
+        var policy = await _policyFactory.ForCurrentTenantAsync(cancellationToken);
+        if (request.Stock > 0m)
+        {
+            var qtyCheck = policy.ValidateQuantity(request.Stock);
+            if (!qtyCheck.IsSuccess)
+                return Result<ProductResponse>.Failure(qtyCheck.ErrorCode!, qtyCheck.Error!);
+        }
+
         var extendedDataJson = ResolveExtendedDataJson(request.ExtendedDataJson);
 
-        var product = new Product
-        {
-            Id = Guid.NewGuid(),
-            Name = request.Name.Trim(),
-            SKU = request.SKU.Trim(),
-            Barcode = request.Barcode.Trim(),
-            NetPrice = request.NetPrice,
-            TaxRate = request.TaxRate,
-            Stock = request.Stock,
-            ExtendedDataJson = extendedDataJson,
-            CreatedAt = DateTime.UtcNow
-        };
-
-        // TenantId NO se recibe del cliente: lo asigna Infrastructure en SaveChanges usando ICurrentUserService.
-        _db.Products.Add(product);
-
+        await using var tx = await _db.Database.BeginTransactionAsync(cancellationToken);
         try
         {
+            var product = new Product
+            {
+                Id = Guid.NewGuid(),
+                Name = request.Name.Trim(),
+                SKU = request.SKU.Trim(),
+                Barcode = request.Barcode.Trim(),
+                NetPrice = request.NetPrice,
+                TaxRate = request.TaxRate,
+                Stock = 0m,
+                ExtendedDataJson = extendedDataJson,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            _db.Products.Add(product);
             await _db.SaveChangesAsync(cancellationToken);
+
+            if (request.Stock > 0m)
+            {
+                var seed = await policy.ApplyProductSeedAsync(
+                    new StockApplyContext
+                    {
+                        Product = product,
+                        Quantity = request.Stock,
+                        LotNumber = request.LotNumber,
+                        ExpirationDate = request.ExpirationDate,
+                        Reason = "Stock inicial",
+                        ReferenceId = product.Id,
+                        CreatedByUserId = _currentUser.UserId ?? string.Empty
+                    },
+                    cancellationToken);
+
+                if (!seed.IsSuccess)
+                {
+                    await tx.RollbackAsync(cancellationToken);
+                    return Result<ProductResponse>.Failure(seed.ErrorCode!, seed.Error!);
+                }
+
+                await _db.SaveChangesAsync(cancellationToken);
+            }
+
+            await tx.CommitAsync(cancellationToken);
+            return Result<ProductResponse>.Ok(ProductResponse.FromEntity(product));
         }
         catch (DbUpdateException)
         {
+            await tx.RollbackAsync(cancellationToken);
             return Result<ProductResponse>.Failure(
                 "product.duplicate",
                 "No se pudo crear el producto. Verifique que el SKU no esté repetido para este tenant.");
         }
-
-        return Result<ProductResponse>.Ok(ProductResponse.FromEntity(product));
+        catch
+        {
+            await tx.RollbackAsync(cancellationToken);
+            throw;
+        }
     }
 
     private async Task<Result<ProductResponse>> UpdateInternalAsync(
@@ -193,12 +244,10 @@ public sealed class ProductsController : ControllerBase
             request.Name,
             request.SKU,
             request.NetPrice,
-            request.TaxRate,
-            request.Stock);
+            request.TaxRate);
         if (validationError is not null)
             return Result<ProductResponse>.Failure("product.validation", validationError);
 
-        // Multi-tenant: con query filter global, si no coincide tenant también devuelve null (NotFound).
         var product = await _db.Products.FirstOrDefaultAsync(p => p.Id == id, cancellationToken);
         if (product is null)
             return Result<ProductResponse>.Failure("product.not_found", "Producto no encontrado.");
@@ -208,7 +257,7 @@ public sealed class ProductsController : ControllerBase
         product.Barcode = request.Barcode.Trim();
         product.NetPrice = request.NetPrice;
         product.TaxRate = request.TaxRate;
-        product.Stock = request.Stock;
+        // Stock no se edita aquí: usar ajustes / compras / ventas.
         product.ExtendedDataJson = ResolveExtendedDataJson(request.ExtendedDataJson);
 
         try
@@ -229,8 +278,7 @@ public sealed class ProductsController : ControllerBase
         string name,
         string sku,
         decimal netPrice,
-        decimal taxRate,
-        int stock)
+        decimal taxRate)
     {
         if (string.IsNullOrWhiteSpace(name))
             return "El nombre es obligatorio.";
@@ -263,6 +311,12 @@ public sealed class ProductsController : ControllerBase
         if (product is null)
             return Result<object?>.Failure("product.not_found", "Producto no encontrado.");
 
+        var movements = await _db.StockMovements.Where(m => m.ProductId == id).ToListAsync(cancellationToken);
+        _db.StockMovements.RemoveRange(movements);
+
+        var lots = await _db.StockLots.Where(l => l.ProductId == id).ToListAsync(cancellationToken);
+        _db.StockLots.RemoveRange(lots);
+
         _db.Products.Remove(product);
         await _db.SaveChangesAsync(cancellationToken);
         return Result<object?>.Ok(null);
@@ -280,9 +334,13 @@ public sealed class ProductsController : ControllerBase
 
         public decimal TaxRate { get; init; }
 
-        public int Stock { get; init; }
+        public decimal Stock { get; init; }
 
         public JsonElement? ExtendedDataJson { get; init; }
+
+        public string? LotNumber { get; init; }
+
+        public DateOnly? ExpirationDate { get; init; }
     }
 
     public sealed class UpdateProductRequest
@@ -296,8 +354,6 @@ public sealed class ProductsController : ControllerBase
         public decimal NetPrice { get; init; }
 
         public decimal TaxRate { get; init; }
-
-        public int Stock { get; init; }
 
         public JsonElement? ExtendedDataJson { get; init; }
     }

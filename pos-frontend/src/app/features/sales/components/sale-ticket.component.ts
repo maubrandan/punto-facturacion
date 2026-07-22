@@ -3,6 +3,7 @@ import { Component, computed, input } from '@angular/core';
 import type { FiscalDocumentView } from '../../../core/models/fiscal.model';
 import { formatVoucher, isFiscalAuthorized } from '../../../core/models/fiscal.model';
 import type { SaleDetailView } from '../../../core/services/sale.service';
+import { paymentMethodLabel } from '../../../core/models/payment.model';
 
 /**
  * Ticket para impresora térmica 80mm: oculto en pantalla, formateo en @media print.
@@ -111,6 +112,16 @@ import type { SaleDetailView } from '../../../core/services/sale.service';
           <span>{{ sale()!.totalAmount | number: '1.2-2' }}</span>
         </div>
 
+        @if (sale()!.payments.length) {
+          <hr class="ticket-sep" />
+          @for (p of sale()!.payments; track p.id) {
+            <div class="ticket-row">
+              <span>{{ paymentLabel(p.method) }}</span>
+              <span class="ticket-row-val">{{ p.amount | number: '1.2-2' }}</span>
+            </div>
+          }
+        }
+
         <p class="ticket-footer">Gracias por su compra</p>
       </div>
     }
@@ -140,6 +151,7 @@ export class SaleTicketComponent {
 
   readonly formatVoucher = formatVoucher;
   readonly isFiscalAuthorized = isFiscalAuthorized;
+  readonly paymentLabel = paymentMethodLabel;
 
   startPrint(): void {
     document.body.classList.add('printing-thermal-ticket');

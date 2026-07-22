@@ -8,9 +8,13 @@ import {
   isFiscalAuthorized,
   type FiscalDocumentView
 } from '../../../core/models/fiscal.model';
+import type { Customer } from '../../../core/models/customer.model';
+import { paymentMethodLabel } from '../../../core/models/payment.model';
+import { CustomerService } from '../../../core/services/customer.service';
 import { FiscalService } from '../../../core/services/fiscal.service';
 import type { PagedSalesResult, SaleDetailView } from '../../../core/services/sale.service';
 import { SaleTicketComponent } from '../components/sale-ticket.component';
+import { firstValueFrom } from 'rxjs';
 
 interface Envelope<T> {
   success: boolean;
@@ -179,6 +183,14 @@ interface Envelope<T> {
                 <dt class="text-slate-500">Total</dt>
                 <dd class="font-semibold text-brand-400">{{ d.totalAmount | number: '1.2-2' }}</dd>
               </div>
+              @if (d.payments.length) {
+                @for (p of d.payments; track p.id) {
+                  <div class="flex justify-between gap-2 text-sm">
+                    <dt class="text-slate-500">{{ paymentLabel(p.method) }}</dt>
+                    <dd>{{ p.amount | number: '1.2-2' }}</dd>
+                  </div>
+                }
+              }
             </dl>
 
             <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Líneas</h3>
@@ -260,11 +272,33 @@ interface Envelope<T> {
                     <summary class="cursor-pointer text-brand-300">Factura A</summary>
                     <div class="mt-2 space-y-2">
                       <input
+                        type="search"
+                        class="input-brand"
+                        placeholder="Buscar cliente"
+                        [value]="customerQuery()"
+                        (input)="onCustomerQuery($event)"
+                      />
+                      @if (customerSuggestions().length > 0) {
+                        <ul class="max-h-28 overflow-y-auto rounded border border-slate-700 bg-slate-900 text-xs">
+                          @for (c of customerSuggestions(); track c.id) {
+                            <li>
+                              <button
+                                type="button"
+                                class="block w-full px-2 py-1 text-left hover:bg-slate-800"
+                                (click)="selectCustomer(c)"
+                              >
+                                {{ c.name }} · {{ c.taxId }}
+                              </button>
+                            </li>
+                          }
+                        </ul>
+                      }
+                      <input
                         type="text"
                         class="input-brand"
                         placeholder="CUIT comprador"
                         [value]="buyerTaxId()"
-                        (input)="buyerTaxId.set(($any($event.target)).value)"
+                        (input)="onBuyerTaxId($event)"
                       />
                       <button
                         type="button"
@@ -313,14 +347,20 @@ interface Envelope<T> {
 export class SaleHistoryComponent implements OnInit {
   private readonly baseUrl = '/api/sales';
   readonly fiscalService = inject(FiscalService);
+  private readonly customerService = inject(CustomerService);
 
   readonly fiscalProfileReady = signal(false);
   readonly fiscalActionError = signal<string | null>(null);
   readonly buyerTaxId = signal('');
+  readonly selectedCustomerId = signal<string | null>(null);
+  readonly customerQuery = signal('');
+  readonly customerSuggestions = signal<readonly Customer[]>([]);
+  private customerSearchSeq = 0;
 
   readonly fiscalStatusLabel = fiscalStatusLabel;
   readonly formatVoucher = formatVoucher;
   readonly isFiscalAuthorized = isFiscalAuthorized;
+  readonly paymentLabel = paymentMethodLabel;
 
   readonly startDate = signal('');
   readonly endDate = signal('');
@@ -464,12 +504,51 @@ export class SaleHistoryComponent implements OnInit {
     const result = await this.fiscalService.issueInvoice({
       saleId,
       isInvoiceA: true,
-      buyerTaxId: this.buyerTaxId().trim() || null
+      buyerTaxId: this.buyerTaxId().trim() || null,
+      customerId: this.selectedCustomerId()
     });
     if (!result.success) {
       this.fiscalActionError.set(result.error?.message ?? 'Error al emitir.');
     }
     this.reloadDetail();
+  }
+
+  onCustomerQuery(e: Event): void {
+    const q = (e.target as HTMLInputElement).value;
+    this.customerQuery.set(q);
+    void this.searchCustomers(q);
+  }
+
+  onBuyerTaxId(e: Event): void {
+    this.buyerTaxId.set((e.target as HTMLInputElement).value);
+    this.selectedCustomerId.set(null);
+  }
+
+  selectCustomer(c: Customer): void {
+    this.selectedCustomerId.set(c.id);
+    this.buyerTaxId.set(c.taxId);
+    this.customerQuery.set(`${c.name} (${c.taxId})`);
+    this.customerSuggestions.set([]);
+  }
+
+  private async searchCustomers(q: string): Promise<void> {
+    const term = q.trim();
+    if (term.length < 2) {
+      this.customerSuggestions.set([]);
+      return;
+    }
+    const seq = ++this.customerSearchSeq;
+    try {
+      const rows = await firstValueFrom(this.customerService.getAll(term));
+      if (seq !== this.customerSearchSeq) {
+        return;
+      }
+      this.customerSuggestions.set(rows.slice(0, 8));
+    } catch {
+      if (seq === this.customerSearchSeq) {
+        this.customerSuggestions.set([]);
+      }
+    }
   }
 
   async retryFiscal(fiscalDocumentId: string): Promise<void> {

@@ -143,20 +143,40 @@ export interface ProductFormPayload {
               </div>
 
               <div>
-                <label for="stockInitial" class="mb-2 block text-sm font-medium text-slate-300">Stock inicial</label>
-                <input
-                  id="stockInitial"
-                  type="number"
-                  min="0"
-                  step="1"
-                  formControlName="stockInitial"
-                  class="input-brand"
-                  [class.ng-invalid]="isInvalid('stockInitial')"
-                  [class.ng-touched]="isTouched('stockInitial')"
-                  [class.border-rose-500]="isInvalid('stockInitial')"
-                />
-                @if (fieldError('stockInitial'); as message) {
-                  <p class="mt-1 text-xs text-rose-400">{{ message }}</p>
+                @if (productId()) {
+                  <label class="mb-2 block text-sm font-medium text-slate-300">Stock actual</label>
+                  <p class="rounded-lg border border-slate-800 bg-slate-950/60 px-3 py-2 text-sm text-slate-300">
+                    {{ form.controls.stockInitial.value }}
+                    <span class="ml-2 text-xs text-slate-500">Se modifica desde Inventario (ajustes) o compras.</span>
+                  </p>
+                } @else {
+                  <label for="stockInitial" class="mb-2 block text-sm font-medium text-slate-300">Stock inicial</label>
+                  <input
+                    id="stockInitial"
+                    type="number"
+                    min="0"
+                    [step]="stockStep()"
+                    formControlName="stockInitial"
+                    class="input-brand"
+                    [class.ng-invalid]="isInvalid('stockInitial')"
+                    [class.ng-touched]="isTouched('stockInitial')"
+                    [class.border-rose-500]="isInvalid('stockInitial')"
+                  />
+                  @if (fieldError('stockInitial'); as message) {
+                    <p class="mt-1 text-xs text-rose-400">{{ message }}</p>
+                  }
+                  @if (businessType() === 'farmacia') {
+                    <div class="mt-3 grid gap-3 sm:grid-cols-2">
+                      <div>
+                        <label for="lotNumber" class="mb-2 block text-sm font-medium text-slate-300">Lote (si hay stock)</label>
+                        <input id="lotNumber" type="text" formControlName="lotNumber" class="input-brand" placeholder="DEFAULT" />
+                      </div>
+                      <div>
+                        <label for="expirationDate" class="mb-2 block text-sm font-medium text-slate-300">Vencimiento</label>
+                        <input id="expirationDate" type="date" formControlName="expirationDate" class="input-brand" />
+                      </div>
+                    </div>
+                  }
                 }
               </div>
 
@@ -308,7 +328,9 @@ export class ProductFormComponent {
     barcode: ['', [Validators.required]],
     netPrice: [0, [Validators.required, Validators.min(0)]],
     taxRate: [21, [Validators.required, Validators.min(0)]],
-    stockInitial: [0, [Validators.required, Validators.min(-10_000_000)]],
+    stockInitial: [0, [Validators.required, Validators.min(0)]],
+    lotNumber: [''],
+    expirationDate: [''],
     activeIngredient: [''],
     requiresPrescription: [false],
     brand: [''],
@@ -320,6 +342,8 @@ export class ProductFormComponent {
   readonly showValidationError = computed(
     () => this.form.invalid && (this.form.dirty || this.form.touched)
   );
+
+  readonly stockStep = computed(() => (this.businessType() === 'ferreteria' ? '0.001' : '1'));
 
   constructor() {
     effect(() => {
@@ -339,6 +363,8 @@ export class ProductFormComponent {
           netPrice: 0,
           taxRate: 21,
           stockInitial: 0,
+          lotNumber: '',
+          expirationDate: '',
           activeIngredient: '',
           requiresPrescription: false,
           brand: '',
@@ -374,8 +400,8 @@ export class ProductFormComponent {
     };
 
     const request$ = payload.id
-      ? this.productService.update(payload.id, this.toUpsertDto(payload))
-      : this.productService.create(this.toUpsertDto(payload));
+      ? this.productService.update(payload.id, this.toUpdateDto(payload))
+      : this.productService.create(this.toCreateDto(payload));
 
     request$
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -493,14 +519,41 @@ export class ProductFormComponent {
       });
   }
 
-  private toUpsertDto(payload: ProductFormPayload) {
-    return {
+  private toCreateDto(payload: ProductFormPayload) {
+    const raw = this.form.getRawValue();
+    const dto: {
+      name: string;
+      sku: string;
+      barcode: string;
+      netPrice: number;
+      taxRate: number;
+      stock: number;
+      extendedDataJson: string;
+      lotNumber?: string;
+      expirationDate?: string;
+    } = {
       name: payload.name,
       sku: payload.sku,
       barcode: payload.barcode,
       netPrice: payload.netPrice,
       taxRate: payload.taxRate,
       stock: payload.stockInitial,
+      extendedDataJson: JSON.stringify(payload.metadata)
+    };
+    if (this.businessType() === 'farmacia' && payload.stockInitial > 0) {
+      dto.lotNumber = raw.lotNumber.trim() || 'DEFAULT';
+      dto.expirationDate = raw.expirationDate || '2099-12-31';
+    }
+    return dto;
+  }
+
+  private toUpdateDto(payload: ProductFormPayload) {
+    return {
+      name: payload.name,
+      sku: payload.sku,
+      barcode: payload.barcode,
+      netPrice: payload.netPrice,
+      taxRate: payload.taxRate,
       extendedDataJson: JSON.stringify(payload.metadata)
     };
   }

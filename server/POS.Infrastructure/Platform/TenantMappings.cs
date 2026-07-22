@@ -11,6 +11,7 @@ internal static class TenantMappings
             Id = t.Id,
             Name = t.Name,
             ContactEmail = t.ContactEmail,
+            BusinessType = string.IsNullOrWhiteSpace(t.BusinessType) ? BusinessTypeNames.Kiosco : t.BusinessType,
             Status = t.Status,
             CreatedAt = t.CreatedAt,
             UpdatedAt = t.UpdatedAt,

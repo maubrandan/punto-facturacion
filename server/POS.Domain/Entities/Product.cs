@@ -24,7 +24,7 @@ public class Product : ITenantEntity
 
     public decimal FinalPrice { get => NetPrice * (1 + (TaxRate / 100m)); }
 
-    public int Stock { get; set; }
+    public decimal Stock { get; set; }
 
     /// <summary>Último costo de compra unitario (neto) registrado; null si aún no hubo compras.</summary>
     public decimal? LastCost { get; set; }

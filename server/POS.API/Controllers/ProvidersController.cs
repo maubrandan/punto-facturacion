@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Providers;
+using POS.Application.Platform;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
 
@@ -11,7 +12,7 @@ namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantStockOrAdmin)]
 public sealed class ProvidersController : ControllerBase
 {
     private readonly ApplicationDbContext _db;

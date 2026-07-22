@@ -11,6 +11,8 @@ using POS.Domain.Entities;
 using POS.Domain.Platform;
 using POS.Infrastructure.Configuration;
 using POS.Infrastructure.Platform;
+using POS.Infrastructure.TenantUsers;
+using POS.Domain.Tenant;
 
 namespace POS.Infrastructure.Persistence;
 
@@ -39,6 +41,8 @@ public static class DbInitializer
 
         var roleManager = serviceProvider.GetRequiredService<RoleManager<IdentityRole>>();
         await PlatformRoleSeeder.EnsurePlatformRolesAsync(roleManager, logger, cancellationToken);
+        await TenantRoleSeeder.EnsureTenantRolesAsync(roleManager, logger, cancellationToken);
+        await BackfillTenantAdminRolesAsync(userManager, logger, cancellationToken);
 
         if (adminOptions.Enabled)
         {
@@ -85,11 +89,19 @@ public static class DbInitializer
                         throw new InvalidOperationException($"No se pudo crear el usuario admin: {errors}");
                     }
 
+                    var roleResult = await userManager.AddToRoleAsync(adminUser, TenantRoleNames.Admin);
+                    if (!roleResult.Succeeded)
+                    {
+                        var errors = string.Join(" ", roleResult.Errors.Select(e => e.Description));
+                        throw new InvalidOperationException($"No se pudo asignar Tenant.Admin: {errors}");
+                    }
+
                     context.Tenants.Add(
                         new Tenant
                         {
                             Id = tenantId,
                             Name = businessName,
+                            BusinessType = businessType,
                             Status = TenantStatus.Active,
                             CreatedAt = DateTime.UtcNow
                         });
@@ -140,6 +152,33 @@ public static class DbInitializer
                     logger.LogInformation("Operador de plataforma (seed) creado: {Email} rol {Role}", v.Email, v.AssignedRole);
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Usuarios tenant existentes sin ningún rol Tenant.* reciben Tenant.Admin (ventana de migración).
+    /// </summary>
+    private static async Task BackfillTenantAdminRolesAsync(
+        UserManager<ApplicationUser> userManager,
+        ILogger logger,
+        CancellationToken cancellationToken)
+    {
+        var tenantsUsers = userManager.Users
+            .Where(u => u.AccountKind == UserAccountKind.TenantUser)
+            .ToList();
+
+        foreach (var user in tenantsUsers)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var roles = await userManager.GetRolesAsync(user);
+            if (roles.Any(TenantRoleNames.IsKnownRole))
+                continue;
+
+            var add = await userManager.AddToRoleAsync(user, TenantRoleNames.Admin);
+            if (add.Succeeded)
+                logger.LogInformation("Backfill Tenant.Admin para {Email}", user.Email);
+            else
+                logger.LogWarning("No se pudo backfill Tenant.Admin para {Email}", user.Email);
         }
     }
 

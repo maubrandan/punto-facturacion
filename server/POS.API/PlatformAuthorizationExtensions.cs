@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.Extensions.DependencyInjection;
 using POS.Application.Platform;
 using POS.Domain.Platform;
+using POS.Domain.Tenant;
 
 namespace POS.API;
 
@@ -63,6 +64,34 @@ internal static class PlatformAuthorizationExtensions
                         || ctx.User.IsInRole(PlatformRoleNames.SupportReadOnly)
                         || ctx.User.IsInRole(PlatformRoleNames.Operations)
                         || ctx.User.IsInRole(PlatformRoleNames.SuperAdmin));
+                });
+
+            options.AddPolicy(
+                AuthorizationPolicies.TenantAdmin,
+                policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireRole(TenantRoleNames.Admin);
+                });
+
+            options.AddPolicy(
+                AuthorizationPolicies.TenantCashierOrAdmin,
+                policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireAssertion(ctx =>
+                        ctx.User.IsInRole(TenantRoleNames.Admin)
+                        || ctx.User.IsInRole(TenantRoleNames.Cashier));
+                });
+
+            options.AddPolicy(
+                AuthorizationPolicies.TenantStockOrAdmin,
+                policy =>
+                {
+                    policy.RequireAuthenticatedUser();
+                    policy.RequireAssertion(ctx =>
+                        ctx.User.IsInRole(TenantRoleNames.Admin)
+                        || ctx.User.IsInRole(TenantRoleNames.Stock));
                 });
         });
 

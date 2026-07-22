@@ -4,12 +4,13 @@ using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Cash;
 using POS.Application.Interfaces;
+using POS.Application.Platform;
 
 namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
 public sealed class CashController : ControllerBase
 {
     private readonly ICashSessionService _cash;

@@ -51,6 +51,7 @@ export interface IssueElectronicInvoiceDto {
   isInvoiceA: boolean;
   buyerTaxId?: string | null;
   buyerName?: string | null;
+  customerId?: string | null;
 }
 
 export interface IssueCreditNoteDto {

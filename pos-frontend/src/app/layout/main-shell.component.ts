@@ -112,6 +112,7 @@ export class MainShellComponent {
     { label: 'Caja', link: '/caja' },
     { label: 'Compras', link: '/compras' },
     { label: 'Proveedores', link: '/proveedores' },
+    { label: 'Clientes', link: '/clientes' },
     { label: 'Inventario', link: '/inventario' }
   ];
 

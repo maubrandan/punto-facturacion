@@ -4,7 +4,8 @@ public sealed record IssueElectronicInvoiceCommand(
     Guid SaleId,
     bool IsInvoiceA,
     string? BuyerTaxId,
-    string? BuyerName);
+    string? BuyerName,
+    Guid? CustomerId = null);
 
 public sealed record RetryElectronicInvoiceCommand(Guid FiscalDocumentId);
 

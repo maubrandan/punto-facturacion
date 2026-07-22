@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using POS.Application.Common;
 using POS.Application.Contracts.Purchases;
 using POS.Application.Interfaces;
+using POS.Application.Inventory;
 using POS.Application.Purchases;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
@@ -12,11 +13,19 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
 {
     private readonly ApplicationDbContext _db;
     private readonly ICashSessionService _cashSession;
+    private readonly ICurrentUserService _currentUser;
+    private readonly IStockPolicyFactory _policyFactory;
 
-    public CreatePurchaseHandler(ApplicationDbContext db, ICashSessionService cashSession)
+    public CreatePurchaseHandler(
+        ApplicationDbContext db,
+        ICashSessionService cashSession,
+        ICurrentUserService currentUser,
+        IStockPolicyFactory policyFactory)
     {
         _db = db;
         _cashSession = cashSession;
+        _currentUser = currentUser;
+        _policyFactory = policyFactory;
     }
 
     public async Task<Result<PurchaseResponse>> HandleAsync(
@@ -28,14 +37,24 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
             return Result<PurchaseResponse>.Failure("purchase.validation", "Debe haber al menos una línea de compra.");
         }
 
-        if (command.Lines.Any(l => l.Quantity <= 0))
-        {
-            return Result<PurchaseResponse>.Failure("purchase.validation", "La cantidad en cada línea debe ser mayor a cero.");
-        }
-
         if (command.Lines.Any(l => l.UnitCost < 0m))
         {
             return Result<PurchaseResponse>.Failure("purchase.validation", "El costo unitario no puede ser negativo.");
+        }
+
+        var policy = await _policyFactory.ForCurrentTenantAsync(cancellationToken);
+        foreach (var line in command.Lines)
+        {
+            var lineCheck = policy.ValidatePurchaseLine(
+                new StockLineContext(
+                    line.ProductId,
+                    line.Quantity,
+                    LotNumber: line.LotNumber,
+                    ExpirationDate: line.ExpirationDate));
+            if (!lineCheck.IsSuccess)
+            {
+                return Result<PurchaseResponse>.Failure(lineCheck.ErrorCode!, lineCheck.Error!);
+            }
         }
 
         var provider = await _db.Set<Provider>()
@@ -58,7 +77,12 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
         }
 
         var merged = command.Lines
-            .GroupBy(l => l.ProductId)
+            .GroupBy(l => new
+            {
+                l.ProductId,
+                LotNumber = string.IsNullOrWhiteSpace(l.LotNumber) ? null : l.LotNumber.Trim(),
+                l.ExpirationDate
+            })
             .Select(g =>
             {
                 var qty = g.Sum(x => x.Quantity);
@@ -66,7 +90,12 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
                 var unit = qty > 0
                     ? decimal.Round(costSum / qty, 4, MidpointRounding.AwayFromZero)
                     : 0m;
-                return (ProductId: g.Key, Quantity: qty, UnitCost: unit);
+                return (
+                    ProductId: g.Key.ProductId,
+                    Quantity: qty,
+                    UnitCost: unit,
+                    LotNumber: g.Key.LotNumber,
+                    ExpirationDate: g.Key.ExpirationDate);
             })
             .ToList();
 
@@ -91,7 +120,7 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
 
         try
         {
-            foreach (var (productId, quantity, unitCost) in merged)
+            foreach (var (productId, quantity, unitCost, lotNumber, expirationDate) in merged)
             {
                 var product = await _db.Products
                     .FirstOrDefaultAsync(p => p.Id == productId, cancellationToken);
@@ -104,7 +133,23 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
                         "Uno o más productos no existen o no pertenecen a este comercio.");
                 }
 
-                product.Stock += quantity;
+                var apply = new StockApplyContext
+                {
+                    Product = product,
+                    Quantity = quantity,
+                    LotNumber = lotNumber,
+                    ExpirationDate = expirationDate,
+                    ReferenceId = purchaseId,
+                    CreatedByUserId = _currentUser.UserId ?? string.Empty
+                };
+
+                var stockResult = await policy.ApplyPurchaseAsync(apply, cancellationToken);
+                if (!stockResult.IsSuccess)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return Result<PurchaseResponse>.Failure(stockResult.ErrorCode!, stockResult.Error!);
+                }
+
                 product.LastCost = unitCost;
 
                 var subtotal = decimal.Round(quantity * unitCost, 2, MidpointRounding.AwayFromZero);
@@ -121,7 +166,10 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
                         UnitCost = unitCost,
                         Subtotal = subtotal,
                         ProductName = product.Name,
-                        ProductSku = sku
+                        ProductSku = sku,
+                        StockLotId = apply.AppliedStockLotId,
+                        LotNumberSnapshot = apply.AppliedLotNumber,
+                        ExpirationSnapshot = apply.AppliedExpiration
                     });
 
                 lineResponses.Add(
@@ -133,7 +181,9 @@ public sealed class CreatePurchaseHandler : ICreatePurchaseHandler
                         ProductSku = sku,
                         Quantity = quantity,
                         UnitCost = unitCost,
-                        Subtotal = subtotal
+                        Subtotal = subtotal,
+                        LotNumberSnapshot = apply.AppliedLotNumber,
+                        ExpirationSnapshot = apply.AppliedExpiration
                     });
             }
 

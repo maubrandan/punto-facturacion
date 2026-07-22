@@ -12,7 +12,12 @@ public sealed class ProductCreateRequest
 
     public decimal TaxRate { get; init; }
 
-    public int Stock { get; init; }
+    public decimal Stock { get; init; }
 
     public string ExtendedDataJson { get; init; } = "{}";
+
+    /// <summary>Farmacia: lote inicial si Stock &gt; 0.</summary>
+    public string? LotNumber { get; init; }
+
+    public DateOnly? ExpirationDate { get; init; }
 }

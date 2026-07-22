@@ -16,7 +16,10 @@ public sealed class SaleDetail : ITenantEntity
 
     public Product? Product { get; set; }
 
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+
+    /// <summary>Lote debitado (Farmacia). Null en otros rubros.</summary>
+    public Guid? StockLotId { get; set; }
 
     /// <summary>Subtotal neto de la línea (NetPrice × cantidad) al momento de la venta.</summary>
     public decimal LineNetSubtotal { get; set; }

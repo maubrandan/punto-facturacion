@@ -16,7 +16,13 @@ public sealed class PurchaseDetail : ITenantEntity
 
     public Product? Product { get; set; }
 
-    public int Quantity { get; set; }
+    public decimal Quantity { get; set; }
+
+    public Guid? StockLotId { get; set; }
+
+    public string? LotNumberSnapshot { get; set; }
+
+    public DateOnly? ExpirationSnapshot { get; set; }
 
     public decimal UnitCost { get; set; }
 

@@ -7,13 +7,16 @@ public sealed class IssueElectronicInvoiceCommandValidator : AbstractValidator<I
     public IssueElectronicInvoiceCommandValidator()
     {
         RuleFor(x => x.SaleId).NotEmpty();
-        RuleFor(x => x.BuyerTaxId)
-            .NotEmpty()
-            .When(x => x.IsInvoiceA)
-            .WithMessage("Factura A requiere CUIT del comprador.");
+        RuleFor(x => x)
+            .Must(x => !x.IsInvoiceA
+                || !string.IsNullOrWhiteSpace(x.BuyerTaxId)
+                || x.CustomerId.HasValue)
+            .WithMessage("Factura A requiere CUIT del comprador o un cliente del directorio.");
         RuleFor(x => x.BuyerTaxId)
             .Must(BeValidCuit)
-            .When(x => x.IsInvoiceA && !string.IsNullOrWhiteSpace(x.BuyerTaxId))
+            .When(x => x.IsInvoiceA
+                && !string.IsNullOrWhiteSpace(x.BuyerTaxId)
+                && !x.CustomerId.HasValue)
             .WithMessage("El CUIT del comprador debe tener 11 dígitos.");
     }
 

@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using POS.Application.Common;
 using POS.Application.Contracts.Sales;
 using POS.Application.Interfaces;
+using POS.Application.Inventory;
 using POS.Application.Sales;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
@@ -14,17 +15,20 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
     private readonly ICurrentUserService _currentUser;
     private readonly ICashSessionService _cashSession;
     private readonly ITenantEntitlementGuard _entitlements;
+    private readonly IStockPolicyFactory _policyFactory;
 
     public CreateSaleHandler(
         ApplicationDbContext db,
         ICurrentUserService currentUser,
         ICashSessionService cashSession,
-        ITenantEntitlementGuard entitlements)
+        ITenantEntitlementGuard entitlements,
+        IStockPolicyFactory policyFactory)
     {
         _db = db;
         _currentUser = currentUser;
         _cashSession = cashSession;
         _entitlements = entitlements;
+        _policyFactory = policyFactory;
     }
 
     public async Task<Result<SaleResponse>> HandleAsync(
@@ -36,9 +40,39 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
             return Result<SaleResponse>.Failure("sale.validation", "Debe haber al menos una línea de venta.");
         }
 
-        if (command.Lines.Any(l => l.Quantity <= 0))
+        if (command.Payments.Count == 0)
         {
-            return Result<SaleResponse>.Failure("sale.validation", "La cantidad en cada línea debe ser mayor a cero.");
+            return Result<SaleResponse>.Failure(
+                "sale.payment_required",
+                "Debe indicar al menos un medio de pago.");
+        }
+
+        foreach (var payment in command.Payments)
+        {
+            if (payment.Amount <= 0m)
+            {
+                return Result<SaleResponse>.Failure(
+                    "sale.payment_invalid",
+                    "Cada cobro debe tener un monto mayor a cero.");
+            }
+
+            if (!Enum.IsDefined(typeof(PaymentMethod), payment.Method))
+            {
+                return Result<SaleResponse>.Failure(
+                    "sale.payment_invalid",
+                    "Medio de pago no válido.");
+            }
+        }
+
+        var policy = await _policyFactory.ForCurrentTenantAsync(cancellationToken);
+        foreach (var line in command.Lines)
+        {
+            var lineCheck = policy.ValidateSaleLine(
+                new StockLineContext(line.ProductId, line.Quantity, line.StockLotId));
+            if (!lineCheck.IsSuccess)
+            {
+                return Result<SaleResponse>.Failure(lineCheck.ErrorCode!, lineCheck.Error!);
+            }
         }
 
         var cashSessionId = await _cashSession.GetOpenSessionIdAsync(cancellationToken);
@@ -57,9 +91,13 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                 entitlementCheck.Error!);
         }
 
+        // Misma combinación producto+lote se agrupa; lotes distintos no se mezclan.
         var merged = command.Lines
-            .GroupBy(l => l.ProductId)
-            .Select(g => (ProductId: g.Key, Quantity: g.Sum(x => x.Quantity)))
+            .GroupBy(l => new { l.ProductId, l.StockLotId })
+            .Select(g => (
+                ProductId: g.Key.ProductId,
+                StockLotId: g.Key.StockLotId,
+                Quantity: g.Sum(x => x.Quantity)))
             .ToList();
 
         var tenantId = _currentUser.TenantId?.Trim();
@@ -99,7 +137,20 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                 }
             }
 
-            foreach (var (productId, quantity) in merged)
+            var sale = new Sale
+            {
+                Id = saleId,
+                Date = now,
+                TotalNet = 0m,
+                TotalTax = 0m,
+                TotalAmount = 0m,
+                CreatedAt = now,
+                CreatedByUserId = createdByUserId,
+                CreatedByUserName = createdByUserName,
+                CashSessionId = cashSessionId
+            };
+
+            foreach (var (productId, stockLotId, quantity) in merged)
             {
                 var product = await _db.Products
                     .FirstOrDefaultAsync(
@@ -114,14 +165,45 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                         "Uno o más productos no existen o no pertenecen a este comercio.");
                 }
 
+                var apply = new StockApplyContext
+                {
+                    Product = product,
+                    Quantity = quantity,
+                    StockLotId = stockLotId,
+                    ReferenceId = saleId,
+                    CreatedByUserId = createdByUserId ?? currentUserId ?? string.Empty
+                };
+
+                var stockResult = await policy.ApplySaleAsync(apply, cancellationToken);
+                if (!stockResult.IsSuccess)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return Result<SaleResponse>.Failure(stockResult.ErrorCode!, stockResult.Error!);
+                }
+
                 var lineNet = decimal.Round(product.NetPrice * quantity, 2, MidpointRounding.AwayFromZero);
                 var lineTax = decimal.Round(lineNet * (product.TaxRate / 100m), 2, MidpointRounding.AwayFromZero);
                 totalNet += lineNet;
                 totalTax += lineTax;
-                product.Stock -= quantity;
                 var extJson = string.IsNullOrWhiteSpace(product.ExtendedDataJson) ? "{}" : product.ExtendedDataJson;
 
                 var detailId = Guid.NewGuid();
+                sale.Details.Add(
+                    new SaleDetail
+                    {
+                        Id = detailId,
+                        SaleId = saleId,
+                        ProductId = product.Id,
+                        ProductName = product.Name,
+                        ProductExtendedDataJson = extJson,
+                        Quantity = quantity,
+                        StockLotId = apply.AppliedStockLotId ?? stockLotId,
+                        LineNetSubtotal = lineNet,
+                        LineTaxAmount = lineTax,
+                        UnitNetPrice = product.NetPrice,
+                        TaxRate = product.TaxRate
+                    });
+
                 lineResponses.Add(
                     new SaleLineResponse
                     {
@@ -137,59 +219,66 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                     });
             }
 
-            var totalAmount = totalNet + totalTax;
+            sale.TotalNet = totalNet;
+            sale.TotalTax = totalTax;
+            sale.TotalAmount = totalNet + totalTax;
 
-            var sale = new Sale
+            var paymentSum = decimal.Round(
+                command.Payments.Sum(p => p.Amount),
+                2,
+                MidpointRounding.AwayFromZero);
+            if (paymentSum != sale.TotalAmount)
             {
-                Id = saleId,
-                Date = now,
-                TotalNet = totalNet,
-                TotalTax = totalTax,
-                TotalAmount = totalAmount,
-                CreatedAt = now,
-                CreatedByUserId = createdByUserId,
-                CreatedByUserName = createdByUserName,
-                CashSessionId = cashSessionId
-            };
+                await transaction.RollbackAsync(cancellationToken);
+                return Result<SaleResponse>.Failure(
+                    "sale.payment_mismatch",
+                    $"La suma de pagos ({paymentSum:0.00}) debe coincidir con el total ({sale.TotalAmount:0.00}).");
+            }
 
-            for (var i = 0; i < lineResponses.Count; i++)
+            var paymentResponses = new List<SalePaymentResponse>();
+            foreach (var payment in command.Payments)
             {
-                var line = lineResponses[i];
-                sale.Details.Add(
-                    new SaleDetail
+                var paymentId = Guid.NewGuid();
+                var method = (PaymentMethod)payment.Method;
+                var amount = decimal.Round(payment.Amount, 2, MidpointRounding.AwayFromZero);
+                sale.Payments.Add(
+                    new SalePayment
                     {
-                        Id = line.Id,
+                        Id = paymentId,
                         SaleId = saleId,
-                        ProductId = line.ProductId,
-                        ProductName = line.ProductName,
-                        ProductExtendedDataJson = line.ProductExtendedDataJson,
-                        Quantity = line.Quantity,
-                        LineNetSubtotal = line.LineNetSubtotal,
-                        LineTaxAmount = line.LineTaxAmount,
-                        UnitNetPrice = line.UnitNetPrice,
-                        TaxRate = line.TaxRate
+                        Method = method,
+                        Amount = amount,
+                        CreatedAt = now
+                    });
+                paymentResponses.Add(
+                    new SalePaymentResponse
+                    {
+                        Id = paymentId,
+                        Method = (int)method,
+                        Amount = amount
                     });
             }
 
             _db.Sales.Add(sale);
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
+
+            return Result<SaleResponse>.Ok(
+                new SaleResponse
+                {
+                    Id = saleId,
+                    Date = now,
+                    TotalNet = totalNet,
+                    TotalTax = totalTax,
+                    TotalAmount = sale.TotalAmount,
+                    Lines = lineResponses,
+                    Payments = paymentResponses
+                });
         }
         catch
         {
             await transaction.RollbackAsync(cancellationToken);
             throw;
         }
-
-        return Result<SaleResponse>.Ok(
-            new SaleResponse
-            {
-                Id = saleId,
-                Date = now,
-                TotalNet = totalNet,
-                TotalTax = totalTax,
-                TotalAmount = totalNet + totalTax,
-                Lines = lineResponses
-            });
     }
 }

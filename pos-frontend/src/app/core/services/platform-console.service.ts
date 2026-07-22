@@ -83,6 +83,13 @@ export interface PlatformMetricsOverview {
   recentAuditEvents: number;
 }
 
+export interface ImpersonationSessionResponse {
+  accessToken: string;
+  tokenType: string;
+  expiresIn: number;
+  tenantId: string;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T | null;
@@ -223,6 +230,23 @@ export class PlatformConsoleService {
     return this.http
       .get<ApiResponse<PlatformMetricsOverview>>(`${this.apiBase}/metrics/overview`)
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudieron cargar métricas de plataforma.')));
+  }
+
+  startImpersonation(payload: {
+    tenantId: string;
+    reason: string;
+    ttlMinutes?: number;
+  }): Observable<ImpersonationSessionResponse> {
+    return this.http
+      .post<ApiResponse<ImpersonationSessionResponse>>(
+        `${this.apiBase}/support/impersonation/session`,
+        {
+          tenantId: payload.tenantId,
+          reason: payload.reason,
+          ttlMinutes: payload.ttlMinutes ?? 15
+        }
+      )
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo iniciar la sesión de soporte.')));
   }
 
   private requireSuccessData<T>(response: ApiResponse<T>, fallback: string): T {

@@ -3,6 +3,7 @@ import { Component, computed, inject, OnInit, signal } from '@angular/core';
 import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Product } from '../../../core/models/product.model';
+import { AuthService } from '../../../core/services/auth.service';
 import { ProductService } from '../../../core/services/product.service';
 import { ProviderService } from '../../../core/services/provider.service';
 import { PurchaseService } from '../../../core/services/purchase.service';
@@ -14,6 +15,8 @@ interface CartLine {
   sku: string;
   quantity: number;
   unitCost: number;
+  lotNumber: string;
+  expirationDate: string;
 }
 
 @Component({
@@ -136,6 +139,10 @@ interface CartLine {
               <tr class="border-b border-slate-800 text-left text-slate-400">
                 <th class="py-2 pr-3">Producto</th>
                 <th class="py-2 pr-3 w-28">Cant.</th>
+                @if (isFarmacia()) {
+                  <th class="py-2 pr-3 w-28">Lote</th>
+                  <th class="py-2 pr-3 w-36">Vence</th>
+                }
                 <th class="py-2 pr-3 w-36">Costo u.</th>
                 <th class="py-2 pr-0 text-right">Subtotal</th>
                 <th class="py-2 w-20"></th>
@@ -151,13 +158,32 @@ interface CartLine {
                   <td class="py-2 pr-3">
                     <input
                       type="number"
-                      min="1"
-                      step="1"
+                      min="0.001"
+                      [step]="qtyStep()"
                       class="input-brand w-full text-right"
                       [value]="row.quantity"
                       (input)="setQty(row.productId, $event)"
                     />
                   </td>
+                  @if (isFarmacia()) {
+                    <td class="py-2 pr-3">
+                      <input
+                        type="text"
+                        class="input-brand w-full"
+                        [value]="row.lotNumber"
+                        (input)="setLot(row.productId, $event)"
+                        placeholder="Lote"
+                      />
+                    </td>
+                    <td class="py-2 pr-3">
+                      <input
+                        type="date"
+                        class="input-brand w-full"
+                        [value]="row.expirationDate"
+                        (input)="setExpiration(row.productId, $event)"
+                      />
+                    </td>
+                  }
                   <td class="py-2 pr-3">
                     <input
                       type="number"
@@ -218,6 +244,14 @@ export class PurchaseFormComponent implements OnInit {
   private readonly productService = inject(ProductService);
   private readonly providerService = inject(ProviderService);
   private readonly purchaseService = inject(PurchaseService);
+  private readonly authService = inject(AuthService);
+
+  readonly isFarmacia = computed(
+    () => this.authService.currentUser()?.businessType === 'farmacia'
+  );
+  readonly qtyStep = computed(() =>
+    this.authService.currentUser()?.businessType === 'ferreteria' ? '0.001' : '1'
+  );
 
   private readonly allProviders = signal<readonly Provider[]>([]);
   private readonly allProducts = signal<readonly Product[]>([]);
@@ -334,6 +368,7 @@ export class PurchaseFormComponent implements OnInit {
   addOrMerge(p: Product): void {
     this.productSearch.set('');
     const defCost = p.lastCost ?? 0;
+    const step = this.authService.currentUser()?.businessType === 'ferreteria' ? 0.001 : 1;
     this.lines.update((rows) => {
       const i = rows.findIndex((r) => r.productId === p.id);
       if (i < 0) {
@@ -343,23 +378,41 @@ export class PurchaseFormComponent implements OnInit {
             productId: p.id,
             name: p.name,
             sku: p.sku,
-            quantity: 1,
-            unitCost: defCost
+            quantity: step,
+            unitCost: defCost,
+            lotNumber: '',
+            expirationDate: ''
           }
         ];
       }
       const next = rows.slice();
-      const row = { ...next[i] };
-      row.quantity += 1;
+      const row = { ...next[i]! };
+      row.quantity += step;
       next[i] = row;
       return next;
     });
   }
 
   setQty(id: string, e: Event): void {
-    const n = Math.max(1, Math.floor(Number((e.target as HTMLInputElement).value) || 1));
+    const raw = Number((e.target as HTMLInputElement).value) || 0;
+    const n =
+      this.authService.currentUser()?.businessType === 'ferreteria'
+        ? Math.max(0.001, Math.round(raw * 1000) / 1000)
+        : Math.max(1, Math.floor(raw));
     this.lines.update((rows) =>
       rows.map((r) => (r.productId === id ? { ...r, quantity: n } : r))
+    );
+  }
+
+  setLot(id: string, e: Event): void {
+    const v = (e.target as HTMLInputElement).value;
+    this.lines.update((rows) => rows.map((r) => (r.productId === id ? { ...r, lotNumber: v } : r)));
+  }
+
+  setExpiration(id: string, e: Event): void {
+    const v = (e.target as HTMLInputElement).value;
+    this.lines.update((rows) =>
+      rows.map((r) => (r.productId === id ? { ...r, expirationDate: v } : r))
     );
   }
 
@@ -377,9 +430,13 @@ export class PurchaseFormComponent implements OnInit {
   }
 
   canSubmit(): boolean {
+    const linesOk =
+      this.lines().length > 0 &&
+      (!this.isFarmacia() ||
+        this.lines().every((l) => l.lotNumber.trim().length > 0 && l.expirationDate.length > 0));
     return (
       this.selectedProviderId() !== null &&
-      this.lines().length > 0 &&
+      linesOk &&
       !this.saving() &&
       !this.submitOk()
     );
@@ -409,7 +466,9 @@ export class PurchaseFormComponent implements OnInit {
         lines: this.lines().map((l) => ({
           productId: l.productId,
           quantity: l.quantity,
-          unitCost: l.unitCost
+          unitCost: l.unitCost,
+          lotNumber: this.isFarmacia() ? l.lotNumber.trim() : null,
+          expirationDate: this.isFarmacia() ? l.expirationDate : null
         }))
       })
       .subscribe((r) => {

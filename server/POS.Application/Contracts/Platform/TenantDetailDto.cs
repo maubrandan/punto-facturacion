@@ -10,6 +10,8 @@ public sealed class TenantDetailDto
 
     public string? ContactEmail { get; init; }
 
+    public required string BusinessType { get; init; }
+
     public TenantStatus Status { get; init; }
 
     public DateTime CreatedAt { get; init; }

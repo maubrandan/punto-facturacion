@@ -5,6 +5,7 @@ using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Purchases;
 using POS.Application.Interfaces;
+using POS.Application.Platform;
 using POS.Application.Purchases;
 using POS.Infrastructure.Persistence;
 
@@ -12,7 +13,7 @@ namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantStockOrAdmin)]
 public sealed class PurchasesController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
@@ -76,7 +77,9 @@ public sealed class PurchasesController : ControllerBase
                     ProductSku = d.ProductSku,
                     Quantity = d.Quantity,
                     UnitCost = d.UnitCost,
-                    Subtotal = d.Subtotal
+                    Subtotal = d.Subtotal,
+                    LotNumberSnapshot = d.LotNumberSnapshot,
+                    ExpirationSnapshot = d.ExpirationSnapshot
                 })
             .ToListAsync(cancellationToken);
 
@@ -107,7 +110,12 @@ public sealed class PurchasesController : ControllerBase
             request.Date,
             request.InvoiceNumber ?? string.Empty,
             request.Lines
-                .Select(l => new CreatePurchaseLineCommand(l.ProductId, l.Quantity, l.UnitCost))
+                .Select(l => new CreatePurchaseLineCommand(
+                    l.ProductId,
+                    l.Quantity,
+                    l.UnitCost,
+                    l.LotNumber,
+                    l.ExpirationDate))
                 .ToList());
 
         var result = await _createPurchaseHandler.HandleAsync(command, cancellationToken);

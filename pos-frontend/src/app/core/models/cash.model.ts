@@ -3,6 +3,9 @@ export interface CashSessionSummary {
   openingDate: string | null;
   initialAmount: number | null;
   totalSales: number;
+  totalCashPayments: number;
+  totalCardPayments: number;
+  totalTransferPayments: number;
   totalPurchases: number;
   totalExpenses: number;
   projectedAmount: number;

@@ -41,7 +41,7 @@ public sealed class FiscalAuthorizationLine
 {
     public required string Description { get; init; }
 
-    public required int Quantity { get; init; }
+    public required decimal Quantity { get; init; }
 
     public required decimal UnitNetPrice { get; init; }
 

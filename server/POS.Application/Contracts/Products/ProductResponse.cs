@@ -18,7 +18,7 @@ public sealed class ProductResponse
 
     public decimal FinalPrice { get; init; }
 
-    public int Stock { get; init; }
+    public decimal Stock { get; init; }
 
     public decimal? LastCost { get; init; }
 

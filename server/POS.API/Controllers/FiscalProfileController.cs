@@ -5,6 +5,7 @@ using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Fiscal;
 using POS.Application.Interfaces;
+using POS.Application.Platform;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
 
@@ -12,7 +13,7 @@ namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/fiscal/profile")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantAdmin)]
 public sealed class FiscalProfileController : ControllerBase
 {
     private readonly ApplicationDbContext _db;

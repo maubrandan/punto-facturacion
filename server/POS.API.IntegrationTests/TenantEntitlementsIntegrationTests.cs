@@ -86,7 +86,11 @@ public sealed class TenantEntitlementsIntegrationTests
 
         var saleRes = await client.PostAsJsonAsync(
             "/api/sales",
-            new { lines = new[] { new { productId, quantity = 1 } } });
+            new
+            {
+                lines = new[] { new { productId, quantity = 1 } },
+                payments = new[] { new { method = 0, amount = 121m } }
+            });
 
         Assert.Equal(HttpStatusCode.BadRequest, saleRes.StatusCode);
         var saleErr = await saleRes.Content.ReadFromJsonAsync<ApiResponse<SaleResponse>>();

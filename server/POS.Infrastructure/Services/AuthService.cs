@@ -8,6 +8,7 @@ using POS.Application.Contracts.Auth;
 using POS.Application.Interfaces;
 using POS.Domain.Entities;
 using POS.Domain.Platform;
+using POS.Domain.Tenant;
 using POS.Infrastructure.Configuration;
 using POS.Infrastructure.Persistence;
 
@@ -15,14 +16,8 @@ namespace POS.Infrastructure.Services;
 
 public sealed class AuthService : IAuthService
 {
-    private static readonly HashSet<string> AllowedBusinessTypes = new(StringComparer.OrdinalIgnoreCase)
-    {
-        "Farmacia",
-        "Ferreteria",
-        "Kiosco"
-    };
-
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ApplicationDbContext _context;
     private readonly ICurrentUserTenantContext _tenantContext;
     private readonly IJwtTokenService _jwtTokenService;
@@ -31,6 +26,7 @@ public sealed class AuthService : IAuthService
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager,
         ApplicationDbContext context,
         ICurrentUserTenantContext tenantContext,
         IJwtTokenService jwtTokenService,
@@ -38,6 +34,7 @@ public sealed class AuthService : IAuthService
         ILogger<AuthService> logger)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _context = context;
         _tenantContext = tenantContext;
         _jwtTokenService = jwtTokenService;
@@ -94,10 +91,18 @@ public sealed class AuthService : IAuthService
                 return Result<AuthResponse>.Failure("auth.register.failed", details);
             }
 
+            var roleResult = await _userManager.AddToRoleAsync(user, TenantRoleNames.Admin);
+            if (!roleResult.Succeeded)
+            {
+                var details = string.Join(" ", roleResult.Errors.Select(e => e.Description));
+                return Result<AuthResponse>.Failure("auth.register.failed", details);
+            }
+
             _context.Tenants.Add(new Tenant
             {
                 Id = tenantId,
                 Name = request.BusinessName.Trim(),
+                BusinessType = businessType,
                 Status = TenantStatus.Active,
                 CreatedAt = DateTime.UtcNow
             });
@@ -105,8 +110,9 @@ public sealed class AuthService : IAuthService
 
             await transaction.CommitAsync(cancellationToken);
 
-            var accessToken = _jwtTokenService.CreateToken(user, cancellationToken);
-            return Result<AuthResponse>.Ok(MakeAuthResponse(user, accessToken));
+            var roles = new[] { TenantRoleNames.Admin };
+            var accessToken = _jwtTokenService.CreateToken(user, businessType, roles, cancellationToken);
+            return Result<AuthResponse>.Ok(MakeAuthResponse(user, accessToken, businessType, roles));
         }
         catch (Exception ex)
         {
@@ -148,6 +154,13 @@ public sealed class AuthService : IAuthService
                 "La cuenta está bloqueada por soporte de plataforma.");
         }
 
+        if (user.BlockedByTenant)
+        {
+            return Result<AuthResponse>.Failure(
+                "auth.login.tenant_blocked",
+                "La cuenta está bloqueada por el administrador del negocio.");
+        }
+
         if (user.AccountKind == UserAccountKind.PlatformUser)
         {
             return Result<AuthResponse>.Failure(
@@ -155,6 +168,7 @@ public sealed class AuthService : IAuthService
                 "Las cuentas de consola de plataforma usan POST /api/platform/auth/login.");
         }
 
+        string? tenantBusinessType = null;
         if (user.AccountKind == UserAccountKind.TenantUser
             && !string.IsNullOrWhiteSpace(user.TenantId))
         {
@@ -162,6 +176,10 @@ public sealed class AuthService : IAuthService
                 .FirstOrDefaultAsync(t => t.Id == user.TenantId, cancellationToken);
             if (tenant is not null)
             {
+                tenantBusinessType = string.IsNullOrWhiteSpace(tenant.BusinessType)
+                    ? user.BusinessType
+                    : tenant.BusinessType;
+
                 if (tenant.Status == TenantStatus.Suspended)
                 {
                     return Result<AuthResponse>.Failure(
@@ -178,8 +196,18 @@ public sealed class AuthService : IAuthService
             }
         }
 
-        var accessToken = _jwtTokenService.CreateToken(user, cancellationToken);
-        return Result<AuthResponse>.Ok(MakeAuthResponse(user, accessToken));
+        var businessType = tenantBusinessType ?? user.BusinessType;
+        var roles = (await _userManager.GetRolesAsync(user))
+            .Where(TenantRoleNames.IsKnownRole)
+            .ToList();
+        if (roles.Count == 0 && await _roleManager.RoleExistsAsync(TenantRoleNames.Admin))
+        {
+            await _userManager.AddToRoleAsync(user, TenantRoleNames.Admin);
+            roles.Add(TenantRoleNames.Admin);
+        }
+
+        var accessToken = _jwtTokenService.CreateToken(user, businessType, roles, cancellationToken);
+        return Result<AuthResponse>.Ok(MakeAuthResponse(user, accessToken, businessType, roles));
     }
 
     public async Task<Result<AuthResponse>> PlatformLoginAsync(
@@ -224,7 +252,11 @@ public sealed class AuthService : IAuthService
         return Result<AuthResponse>.Ok(MakePlatformAuthResponse(user, accessToken));
     }
 
-    private AuthResponse MakeAuthResponse(ApplicationUser user, string accessToken) =>
+    private AuthResponse MakeAuthResponse(
+        ApplicationUser user,
+        string accessToken,
+        string businessType,
+        IReadOnlyList<string> roles) =>
         new()
         {
             AccessToken = accessToken,
@@ -233,7 +265,8 @@ public sealed class AuthService : IAuthService
             UserId = user.Id,
             Email = user.Email ?? string.Empty,
             TenantId = user.TenantId,
-            BusinessType = user.BusinessType
+            BusinessType = businessType,
+            Roles = roles.ToList()
         };
 
     private AuthResponse MakePlatformAuthResponse(ApplicationUser user, string accessToken) =>
@@ -245,31 +278,20 @@ public sealed class AuthService : IAuthService
             UserId = user.Id,
             Email = user.Email ?? string.Empty,
             TenantId = string.Empty,
-            BusinessType = PlatformScope.PlaceholderBusinessType
+            BusinessType = PlatformScope.PlaceholderBusinessType,
+            Roles = Array.Empty<string>()
         };
 
     private static bool TryNormalizeBusinessType(string? value, out string businessType)
     {
-        var candidate = string.IsNullOrWhiteSpace(value) ? "Kiosco" : value.Trim();
-        if (!AllowedBusinessTypes.Contains(candidate))
+        var candidate = string.IsNullOrWhiteSpace(value) ? BusinessTypeNames.Kiosco : value.Trim();
+        if (!BusinessTypeNames.IsKnown(candidate))
         {
             businessType = string.Empty;
             return false;
         }
 
-        if (candidate.Equals("Farmacia", StringComparison.OrdinalIgnoreCase))
-        {
-            businessType = "Farmacia";
-            return true;
-        }
-
-        if (candidate.Equals("Ferreteria", StringComparison.OrdinalIgnoreCase))
-        {
-            businessType = "Ferreteria";
-            return true;
-        }
-
-        businessType = "Kiosco";
+        businessType = BusinessTypeNames.Normalize(candidate);
         return true;
     }
 }

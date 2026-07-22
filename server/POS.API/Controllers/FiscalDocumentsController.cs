@@ -5,12 +5,13 @@ using POS.Application.Contracts;
 using POS.Application.Contracts.Fiscal;
 using POS.Application.Fiscal;
 using POS.Application.Interfaces;
+using POS.Application.Platform;
 
 namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/fiscal-documents")]
-[Authorize]
+[Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
 public sealed class FiscalDocumentsController : ControllerBase
 {
     private readonly IIssueElectronicInvoiceHandler _issueHandler;
@@ -70,7 +71,8 @@ public sealed class FiscalDocumentsController : ControllerBase
                 request.SaleId,
                 request.IsInvoiceA,
                 request.BuyerTaxId,
-                request.BuyerName),
+                request.BuyerName,
+                request.CustomerId),
             cancellationToken);
         var body = ApiResponse<FiscalDocumentResponse>.FromResult(result);
         return result.IsSuccess ? Ok(body) : BadRequest(body);

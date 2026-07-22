@@ -1,7 +1,8 @@
 import { DatePipe } from '@angular/common';
 import { Component, inject, signal } from '@angular/core';
-import { ActivatedRoute, RouterLink } from '@angular/router';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Observable } from 'rxjs';
+import { AuthService } from '../../../core/services/auth.service';
 import {
   PlatformConsoleService,
   PlatformTenantDetail,
@@ -56,6 +57,50 @@ import {
               Suspender
             </button>
             <button class="btn-secondary-sm" (click)="close()" [disabled]="loading() || t.status === 'Closed'">Cerrar</button>
+          </div>
+        </div>
+
+        <div class="card-dashboard border-amber-700/30">
+          <h2 class="heading-brand card-header-accent text-sm font-bold uppercase tracking-wide text-amber-200">
+            Soporte — entrar al POS
+          </h2>
+          <p class="mt-1 text-xs text-slate-500">
+            Genera un JWT de impersonación (Admin del tenant) y abre el dashboard del negocio. El token de plataforma se conserva.
+          </p>
+
+          <label class="mt-3 block text-sm">
+            <span class="text-xs text-slate-500">Motivo (mín. 5 caracteres, queda en auditoría)</span>
+            <input
+              class="input-brand mt-2"
+              [value]="impersonationReason()"
+              (input)="impersonationReason.set(($any($event.target)).value)"
+              placeholder="Ej. revisar error de stock reportado por el cliente"
+            />
+          </label>
+
+          <label class="mt-3 block text-sm max-w-xs">
+            <span class="text-xs text-slate-500">Duración (minutos, 1–60)</span>
+            <input
+              class="input-brand mt-2"
+              type="number"
+              min="1"
+              max="60"
+              [value]="impersonationTtlMinutes()"
+              (input)="impersonationTtlMinutes.set(+($any($event.target)).value || 15)"
+            />
+          </label>
+
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button
+              class="btn-primary"
+              (click)="startImpersonation()"
+              [disabled]="loading() || t.status !== 'Active' || impersonationReason().trim().length < 5"
+            >
+              Entrar como soporte
+            </button>
+            @if (t.status !== 'Active') {
+              <span class="self-center text-xs text-amber-300/80">Solo tenants Active.</span>
+            }
           </div>
         </div>
 
@@ -223,7 +268,9 @@ import {
 })
 export class PlatformTenantDetailPageComponent {
   private readonly api = inject(PlatformConsoleService);
+  private readonly auth = inject(AuthService);
   private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly loading = signal(true);
   readonly error = signal<string | null>(null);
@@ -241,6 +288,8 @@ export class PlatformTenantDetailPageComponent {
   readonly userEmailFilter = signal('');
   readonly userActionJustification = signal('Gestión de usuario desde consola de plataforma');
   readonly usersActionMessage = signal<string | null>(null);
+  readonly impersonationReason = signal('');
+  readonly impersonationTtlMinutes = signal(15);
 
   private readonly tenantId = this.route.snapshot.paramMap.get('tenantId') ?? '';
 
@@ -414,6 +463,40 @@ export class PlatformTenantDetailPageComponent {
         },
         error: (err: unknown) => {
           this.error.set(err instanceof Error ? err.message : 'No se pudo guardar entitlements.');
+          this.loading.set(false);
+        }
+      });
+  }
+
+  startImpersonation(): void {
+    const reason = this.impersonationReason().trim();
+    if (reason.length < 5) {
+      this.error.set('Indicá un motivo de al menos 5 caracteres.');
+      return;
+    }
+
+    const ttl = Math.min(60, Math.max(1, Math.floor(this.impersonationTtlMinutes()) || 15));
+    this.loading.set(true);
+    this.error.set(null);
+
+    this.api
+      .startImpersonation({
+        tenantId: this.tenantId,
+        reason,
+        ttlMinutes: ttl
+      })
+      .subscribe({
+        next: (session) => {
+          const user = this.auth.acceptTenantAccessToken(session.accessToken);
+          this.loading.set(false);
+          if (!user) {
+            this.error.set('El token de soporte no es válido.');
+            return;
+          }
+          void this.router.navigateByUrl('/dashboard');
+        },
+        error: (err: unknown) => {
+          this.error.set(err instanceof Error ? err.message : 'No se pudo iniciar la impersonación.');
           this.loading.set(false);
         }
       });

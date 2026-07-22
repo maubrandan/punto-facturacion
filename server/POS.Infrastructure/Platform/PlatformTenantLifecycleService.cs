@@ -54,6 +54,7 @@ public sealed class PlatformTenantLifecycleService : IPlatformTenantLifecycleSer
             ContactEmail = string.IsNullOrWhiteSpace(command.ContactEmail)
                 ? null
                 : command.ContactEmail.Trim(),
+            BusinessType = BusinessTypeNames.Normalize(command.BusinessType),
             Status = TenantStatus.Active,
             CreatedAt = now
         };

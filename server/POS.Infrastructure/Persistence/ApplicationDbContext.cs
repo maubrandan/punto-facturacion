@@ -39,6 +39,8 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<SaleDetail> SaleDetails => Set<SaleDetail>();
 
+    public DbSet<SalePayment> SalePayments => Set<SalePayment>();
+
     public DbSet<FiscalDocument> FiscalDocuments => Set<FiscalDocument>();
 
     public DbSet<TenantFiscalProfile> TenantFiscalProfiles => Set<TenantFiscalProfile>();
@@ -55,6 +57,12 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<ExpenseCategory> ExpenseCategories => Set<ExpenseCategory>();
 
+    public DbSet<StockLot> StockLots => Set<StockLot>();
+
+    public DbSet<StockMovement> StockMovements => Set<StockMovement>();
+
+    public DbSet<Customer> Customers => Set<Customer>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -68,6 +76,8 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         ConfigureFiscal(modelBuilder);
         ConfigureProviderAndPurchase(modelBuilder);
         ConfigureCashAndExpenses(modelBuilder);
+        ConfigureInventory(modelBuilder);
+        ConfigureCustomer(modelBuilder);
         ConfigureTenantQueryFilters(modelBuilder);
     }
 
@@ -131,6 +141,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(u => u.BusinessType).IsRequired().HasMaxLength(64);
             entity.Property(u => u.AccountKind).IsRequired();
             entity.Property(u => u.BlockedByPlatform).IsRequired();
+            entity.Property(u => u.BlockedByTenant).IsRequired();
         });
     }
 
@@ -151,6 +162,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.NetPrice).HasPrecision(18, 4);
             entity.Property(e => e.TaxRate).HasPrecision(18, 4);
             entity.Property(e => e.LastCost).HasPrecision(18, 4);
+            entity.Property(e => e.Stock).HasPrecision(18, 3);
         });
     }
 
@@ -188,6 +200,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.LineTaxAmount).HasPrecision(18, 2);
             entity.Property(e => e.UnitNetPrice).HasPrecision(18, 2);
             entity.Property(e => e.TaxRate).HasPrecision(18, 4);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
 
             entity
                 .HasOne(e => e.Sale)
@@ -200,6 +213,21 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany()
                 .HasForeignKey(e => e.ProductId)
                 .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SalePayment>(entity =>
+        {
+            entity.ToTable("SalePayments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Method).HasConversion<int>();
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.HasIndex(e => new { e.TenantId, e.SaleId });
+            entity
+                .HasOne(e => e.Sale)
+                .WithMany(s => s.Payments)
+                .HasForeignKey(e => e.SaleId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
     }
 
@@ -292,6 +320,8 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.ProductSku).IsRequired().HasMaxLength(128);
             entity.Property(e => e.UnitCost).HasPrecision(18, 4);
             entity.Property(e => e.Subtotal).HasPrecision(18, 2);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.Property(e => e.LotNumberSnapshot).HasMaxLength(128);
             entity
                 .HasOne(e => e.Purchase)
                 .WithMany(p => p.Details)
@@ -352,6 +382,66 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         });
     }
 
+    private static void ConfigureInventory(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<StockLot>(entity =>
+        {
+            entity.ToTable("StockLots");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.LotNumber).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.HasIndex(e => new { e.TenantId, e.ProductId, e.LotNumber }).IsUnique();
+            entity.HasIndex(e => new { e.TenantId, e.ProductId, e.ExpirationDate });
+            entity
+                .HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<StockMovement>(entity =>
+        {
+            entity.ToTable("StockMovements");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Type).HasConversion<int>();
+            entity.Property(e => e.QuantityDelta).HasPrecision(18, 3);
+            entity.Property(e => e.QuantityAfter).HasPrecision(18, 3);
+            entity.Property(e => e.LotNumberSnapshot).HasMaxLength(128);
+            entity.Property(e => e.Reason).HasMaxLength(512);
+            entity.Property(e => e.CreatedByUserId).IsRequired().HasMaxLength(128);
+            entity.HasIndex(e => new { e.TenantId, e.ProductId, e.CreatedAt });
+            entity
+                .HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.StockLot)
+                .WithMany()
+                .HasForeignKey(e => e.StockLotId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+    }
+
+    private static void ConfigureCustomer(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.ToTable("Customers");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Name).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.TaxId).IsRequired().HasMaxLength(32);
+            entity.Property(e => e.Email).HasMaxLength(320);
+            entity.Property(e => e.Phone).HasMaxLength(64);
+            entity.Property(e => e.Address).HasMaxLength(512);
+            entity.HasIndex(e => new { e.TenantId, e.TaxId }).IsUnique();
+            entity.HasIndex(e => new { e.TenantId, e.Name });
+        });
+    }
+
     private void ConfigureTenantQueryFilters(ModelBuilder modelBuilder)
     {
         foreach (var entityType in modelBuilder.Model.GetEntityTypes())
@@ -391,6 +481,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.Id).IsRequired().HasMaxLength(128);
             entity.Property(e => e.Name).IsRequired().HasMaxLength(512);
             entity.Property(e => e.ContactEmail).HasMaxLength(320);
+            entity.Property(e => e.BusinessType).IsRequired().HasMaxLength(64);
             entity.Property(e => e.Status).HasConversion<int>();
             entity.Property(e => e.UpdatedAt);
             entity.Property(e => e.SuspendedAt);

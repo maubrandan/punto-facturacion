@@ -15,4 +15,6 @@ public sealed class AuthResponse
     public required string TenantId { get; init; }
 
     public required string BusinessType { get; init; }
+
+    public IReadOnlyList<string> Roles { get; init; } = Array.Empty<string>();
 }

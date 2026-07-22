@@ -14,10 +14,15 @@ using POS.Infrastructure.Entitlements;
 using POS.Infrastructure.Platform;
 using POS.Infrastructure.Cash;
 using POS.Infrastructure.Fiscal;
+using POS.Infrastructure.Inventory;
 using POS.Infrastructure.Purchases;
 using POS.Infrastructure.Sales;
 using POS.Infrastructure.Persistence;
 using POS.Infrastructure.Services;
+using POS.Infrastructure.TenantUsers;
+using POS.Application.TenantUsers;
+using POS.Application.TenantUsers.Validation;
+using POS.Application.Inventory;
 
 namespace POS.Infrastructure;
 
@@ -50,6 +55,21 @@ public static class DependencyInjection
 
         services.AddScoped<ICreateSaleHandler, CreateSaleHandler>();
         services.AddScoped<ICreatePurchaseHandler, CreatePurchaseHandler>();
+        services.AddScoped<PharmacyStockPolicy>();
+        services.AddScoped<HardwareStockPolicy>();
+        services.AddScoped<KioskStockPolicy>();
+        services.AddScoped<IStockPolicyFactory, StockPolicyFactory>();
+        services.AddScoped<IAdjustStockHandler, AdjustStockHandler>();
+        services.AddScoped<IInventoryQueryService, InventoryQueryService>();
+
+        services.AddScoped<IValidator<CreateTenantUserCommand>, CreateTenantUserCommandValidator>();
+        services.AddScoped<IValidator<UpdateTenantUserCommand>, UpdateTenantUserCommandValidator>();
+        services.AddScoped<ICreateTenantUserHandler, CreateTenantUserHandler>();
+        services.AddScoped<IUpdateTenantUserHandler, UpdateTenantUserHandler>();
+        services.AddScoped<ISetTenantUserBlockedHandler, SetTenantUserBlockedHandler>();
+        services.AddScoped<IListTenantUsersQuery, ListTenantUsersQuery>();
+        services.AddScoped<IRequestTenantUserPasswordResetHandler, RequestTenantUserPasswordResetHandler>();
+
         services.AddSingleton<Fiscal.Afip.AfipWsaaClient>();
         services.AddSingleton<Fiscal.Afip.AfipWsfeClient>();
         services.AddSingleton<Fiscal.Afip.DirectAfipAuthorizationService>();

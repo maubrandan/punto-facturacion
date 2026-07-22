@@ -70,6 +70,21 @@ import { ExpenseCategory } from '../../../core/models/cash.model';
                   </dd>
                 </div>
                 <div class="flex justify-between gap-2">
+                  <dt class="text-slate-400">Cobros efectivo</dt>
+                  <dd class="font-medium text-emerald-200/90">
+                    +{{ summary()!.totalCashPayments | number: '1.2-2' }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-slate-500">Tarjeta / transfer.</dt>
+                  <dd class="font-medium text-slate-300">
+                    {{
+                      summary()!.totalCardPayments + summary()!.totalTransferPayments
+                        | number: '1.2-2'
+                    }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
                   <dt class="text-slate-400">Compras (turno)</dt>
                   <dd class="font-medium text-amber-200/90">
                     −{{ summary()!.totalPurchases | number: '1.2-2' }}

@@ -15,6 +15,9 @@ public class Tenant
     /// <summary>Contacto operativo (facturación / avisos); opcional.</summary>
     public string? ContactEmail { get; set; }
 
+    /// <summary>Rubro del negocio (fuente de verdad). Ver <see cref="BusinessTypeNames"/>.</summary>
+    public string BusinessType { get; set; } = BusinessTypeNames.Kiosco;
+
     public TenantStatus Status { get; set; } = TenantStatus.Active;
 
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

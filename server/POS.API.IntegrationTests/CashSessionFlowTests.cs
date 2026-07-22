@@ -14,7 +14,7 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
     }
 
     [Fact]
-    public async Task OpenSaleClose_ComputesExpectedAndZeroDifference()
+    public async Task OpenSaleClose_CashPayment_ComputesExpectedAndZeroDifference()
     {
         var tenant = $"t-cash-{Guid.NewGuid():N}";
         using var client = _factory.CreateClient();
@@ -27,7 +27,8 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
 
         var saleReq = new
         {
-            lines = new[] { new { productId, quantity = 1 } }
+            lines = new[] { new { productId, quantity = 1 } },
+            payments = new[] { new { method = 0, amount = 121m } }
         };
         var saleRes = await client.PostAsJsonAsync("/api/sales", saleReq);
         Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
@@ -35,6 +36,7 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
         Assert.NotNull(saleBody);
         Assert.True(saleBody!.Success);
         var totalVenta = saleBody.Data!.TotalAmount;
+        Assert.Equal(121m, totalVenta);
 
         var sumRes = await client.GetAsync("/api/cash/summary");
         Assert.Equal(HttpStatusCode.OK, sumRes.StatusCode);
@@ -42,6 +44,8 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
         Assert.NotNull(sum?.Data);
         Assert.Equal(100m, sum!.Data!.InitialAmount);
         Assert.Equal(totalVenta, sum.Data.TotalSales);
+        Assert.Equal(totalVenta, sum.Data.TotalCashPayments);
+        Assert.Equal(0m, sum.Data.TotalCardPayments);
         var esperado = 100m + totalVenta;
 
         var close = await client.PostAsJsonAsync("/api/cash/close", new { countedAmount = esperado });
@@ -51,6 +55,64 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
         Assert.True(closeBody!.Success);
         Assert.Equal(esperado, closeBody.Data!.ExpectedAmount);
         Assert.Equal(0m, closeBody.Data.Difference);
+    }
+
+    [Fact]
+    public async Task CardSale_DoesNotIncreaseProjectedCash()
+    {
+        var tenant = $"t-card-{Guid.NewGuid():N}";
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenant);
+
+        var open = await client.PostAsJsonAsync("/api/cash/open", new { initialAmount = 50m });
+        Assert.Equal(HttpStatusCode.OK, open.StatusCode);
+
+        var productId = await CreateProductAsync(client, "SKU-CARD-1");
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 1 } },
+                payments = new[] { new { method = 1, amount = 121m } }
+            });
+        Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
+
+        var sumRes = await client.GetAsync("/api/cash/summary");
+        var sum = await sumRes.Content.ReadFromJsonAsync<ApiResponse<SummaryData>>();
+        Assert.Equal(121m, sum!.Data!.TotalSales);
+        Assert.Equal(0m, sum.Data.TotalCashPayments);
+        Assert.Equal(121m, sum.Data.TotalCardPayments);
+        Assert.Equal(50m, sum.Data.ProjectedAmount);
+    }
+
+    [Fact]
+    public async Task SplitPayment_OnlyCashGoesToDrawer()
+    {
+        var tenant = $"t-split-{Guid.NewGuid():N}";
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenant);
+
+        await client.PostAsJsonAsync("/api/cash/open", new { initialAmount = 10m });
+        var productId = await CreateProductAsync(client, "SKU-SPLIT-1");
+
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 1 } },
+                payments = new[]
+                {
+                    new { method = 0, amount = 40m },
+                    new { method = 1, amount = 81m }
+                }
+            });
+        Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
+
+        var sum = await (await client.GetAsync("/api/cash/summary"))
+            .Content.ReadFromJsonAsync<ApiResponse<SummaryData>>();
+        Assert.Equal(40m, sum!.Data!.TotalCashPayments);
+        Assert.Equal(81m, sum.Data.TotalCardPayments);
+        Assert.Equal(50m, sum.Data.ProjectedAmount);
     }
 
     private static async Task<Guid> CreateProductAsync(HttpClient client, string sku)
@@ -97,6 +159,9 @@ public sealed class CashSessionFlowTests : IClassFixture<TestWebApplicationFacto
         public Guid? SessionId { get; set; }
         public decimal? InitialAmount { get; set; }
         public decimal TotalSales { get; set; }
+        public decimal TotalCashPayments { get; set; }
+        public decimal TotalCardPayments { get; set; }
+        public decimal ProjectedAmount { get; set; }
     }
 
     private sealed class CloseData
