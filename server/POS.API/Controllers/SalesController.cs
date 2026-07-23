@@ -65,6 +65,57 @@ public sealed class SalesController : ControllerBase
         return Ok(ApiResponse<SalesReportResponse>.FromResult(Result<SalesReportResponse>.Ok(report)));
     }
 
+    /// <summary>
+    /// Margen aproximado (neto vs LastCost actual del producto). Sin fechas → hoy (UTC).
+    /// </summary>
+    [HttpGet("report/margin")]
+    [ProducesResponseType(typeof(ApiResponse<MarginReportResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<MarginReportResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetMarginReport(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _salesQuery.GetMarginReportAsync(startDate, endDate, cancellationToken);
+        var body = ApiResponse<MarginReportResponse>.FromResult(result);
+        return result.IsSuccess ? Ok(body) : BadRequest(body);
+    }
+
+    /// <summary>
+    /// Top SKUs por cantidad o ingresos netos. <paramref name="sortBy"/>: quantity|revenue. <paramref name="take"/> default 10, máx. 50.
+    /// </summary>
+    [HttpGet("report/top-skus")]
+    [ProducesResponseType(typeof(ApiResponse<TopSkusReportResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TopSkusReportResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetTopSkusReport(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? sortBy,
+        [FromQuery] int take = 10,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _salesQuery.GetTopSkusReportAsync(startDate, endDate, sortBy, take, cancellationToken);
+        var body = ApiResponse<TopSkusReportResponse>.FromResult(result);
+        return result.IsSuccess ? Ok(body) : BadRequest(body);
+    }
+
+    /// <summary>
+    /// Ventas agregadas por período. <paramref name="period"/>: day|week|month (semana inicia lunes UTC).
+    /// </summary>
+    [HttpGet("report/by-period")]
+    [ProducesResponseType(typeof(ApiResponse<SalesByPeriodReportResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<SalesByPeriodReportResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetSalesByPeriodReport(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        [FromQuery] string? period,
+        CancellationToken cancellationToken = default)
+    {
+        var result = await _salesQuery.GetSalesByPeriodReportAsync(startDate, endDate, period, cancellationToken);
+        var body = ApiResponse<SalesByPeriodReportResponse>.FromResult(result);
+        return result.IsSuccess ? Ok(body) : BadRequest(body);
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<SaleDetailViewResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<SaleDetailViewResponse>), StatusCodes.Status404NotFound)]

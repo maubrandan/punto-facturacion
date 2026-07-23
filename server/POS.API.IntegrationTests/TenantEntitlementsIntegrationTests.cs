@@ -122,31 +122,15 @@ public sealed class TenantEntitlementsIntegrationTests
 
         using var scope = factory.Services.CreateScope();
         var guard = scope.ServiceProvider.GetRequiredService<ITenantEntitlementGuard>();
-        var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
-        var before = await guard.EnsureCanAddTenantUserAsync(tenantId);
-        Assert.True(before.IsSuccess);
-
-        var email = $"u1-{Guid.NewGuid():N}@t.local";
-        var u = new ApplicationUser
-        {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true,
-            TenantId = tenantId,
-            FullName = "U1",
-            BusinessType = "Kiosco",
-            AccountKind = UserAccountKind.TenantUser
-        };
-        Assert.True((await users.CreateAsync(u, "Pass123!")).Succeeded);
-
-        var after = await guard.EnsureCanAddTenantUserAsync(tenantId);
-        Assert.False(after.IsSuccess);
-        Assert.Equal("entitlement.user_limit_reached", after.ErrorCode);
+        // El onboarding de plataforma ya crea el primer Tenant.Admin.
+        var afterOnboarding = await guard.EnsureCanAddTenantUserAsync(tenantId);
+        Assert.False(afterOnboarding.IsSuccess);
+        Assert.Equal("entitlement.user_limit_reached", afterOnboarding.ErrorCode);
     }
 
     [Fact]
-    public async Task GetEntitlements_Defaults_When_No_Row()
+    public async Task GetEntitlements_Defaults_When_Unlimited_Onboarding()
     {
         await using var factory = new TestWebApplicationFactory();
         await factory.InitializeAsync();
@@ -169,7 +153,13 @@ public sealed class TenantEntitlementsIntegrationTests
         pc.DefaultRequestHeaders.Add("X-Test-Platform", "true");
         var createRes = await pc.PostAsJsonAsync(
             "/api/platform/tenants",
-            new CreateTenantApiRequest { Name = $"Ent F9 {Guid.NewGuid():N}", ContactEmail = null });
+            new CreateTenantApiRequest
+            {
+                Name = $"Ent F9 {Guid.NewGuid():N}",
+                ContactEmail = null,
+                AdminEmail = $"ent-admin-{Guid.NewGuid():N}@test.local",
+                AdminPassword = "Pass123!"
+            });
         Assert.Equal(HttpStatusCode.OK, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<ApiResponse<TenantDetailDto>>();
         return created!.Data!.Id;

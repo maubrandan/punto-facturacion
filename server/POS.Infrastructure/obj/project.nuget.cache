@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "qXjo1y/MezI=",
+  "dgSpecHash": "CebNUTWXQVM=",
   "success": true,
-  "projectFilePath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
+  "projectFilePath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\xc_18\\.nuget\\packages\\azure.core\\1.47.1\\azure.core.1.47.1.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",
@@ -67,9 +67,9 @@
       "code": "NU1510",
       "level": "Warning",
       "message": "PackageReference Microsoft.Extensions.Configuration.Json no se eliminará. Considere la posibilidad de quitar este paquete de las dependencias, ya que es probable que no sea necesario.",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
       "libraryId": "Microsoft.Extensions.Configuration.Json",
       "targetGraphs": [
         "net10.0"

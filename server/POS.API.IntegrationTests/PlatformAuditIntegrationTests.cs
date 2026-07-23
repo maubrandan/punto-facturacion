@@ -18,7 +18,13 @@ public sealed class PlatformAuditIntegrationTests
 
         var createRes = await platformClient.PostAsJsonAsync(
             "/api/platform/tenants",
-            new CreateTenantApiRequest { Name = $"Audit Tenant {Guid.NewGuid():N}", ContactEmail = null });
+            new CreateTenantApiRequest
+            {
+                Name = $"Audit Tenant {Guid.NewGuid():N}",
+                ContactEmail = null,
+                AdminEmail = $"audit-admin-{Guid.NewGuid():N}@test.local",
+                AdminPassword = "Pass123!"
+            });
         Assert.Equal(HttpStatusCode.OK, createRes.StatusCode);
         var created = await createRes.Content.ReadFromJsonAsync<ApiResponse<TenantDetailDto>>();
         var tenantId = created!.Data!.Id;

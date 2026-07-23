@@ -22,18 +22,8 @@ public sealed class PharmacyStockPolicy : IStockPolicy
 
     public Result<object?> ValidateSaleLine(StockLineContext line)
     {
-        var qty = ValidateQuantity(line.Quantity);
-        if (!qty.IsSuccess)
-            return qty;
-
-        if (line.StockLotId is null || line.StockLotId == Guid.Empty)
-        {
-            return Result<object?>.Failure(
-                "stock.lot_required",
-                "Debe indicar el lote a vender (Farmacia).");
-        }
-
-        return Result<object?>.Ok(null);
+        // Lote opcional: si se omite, ApplySaleAsync reparte FEFO entre lotes no vencidos.
+        return ValidateQuantity(line.Quantity);
     }
 
     public Result<object?> ValidatePurchaseLine(StockLineContext line)
@@ -61,8 +51,9 @@ public sealed class PharmacyStockPolicy : IStockPolicy
         if (!qty.IsSuccess)
             return qty;
 
-        if (string.IsNullOrWhiteSpace(ctx.Reason))
-            return Result<object?>.Failure("stock.adjustment", "El motivo del ajuste es obligatorio.");
+        var reason = StockQuantityRules.RequireKnownAdjustmentReason(ctx.ReasonCode);
+        if (!reason.IsSuccess)
+            return reason;
 
         if (ctx.QuantityDelta < 0m)
         {
@@ -87,6 +78,18 @@ public sealed class PharmacyStockPolicy : IStockPolicy
 
     public async Task<Result<object?>> ApplySaleAsync(StockApplyContext ctx, CancellationToken cancellationToken = default)
     {
+        var explicitLot = ctx.StockLotId is { } id && id != Guid.Empty;
+        if (explicitLot)
+            return await ApplySaleExplicitLotAsync(ctx, cancellationToken);
+
+        return await ApplySaleFefoSplitAsync(ctx, cancellationToken);
+    }
+
+    /// <summary>Override explícito: un solo lote; no reparte a otros.</summary>
+    private async Task<Result<object?>> ApplySaleExplicitLotAsync(
+        StockApplyContext ctx,
+        CancellationToken cancellationToken)
+    {
         var lot = await LoadLotAsync(ctx.Product.Id, ctx.StockLotId, cancellationToken);
         if (lot is null)
             return Result<object?>.Failure("stock.lot_not_found", "El lote no existe o no pertenece al producto.");
@@ -101,25 +104,89 @@ public sealed class PharmacyStockPolicy : IStockPolicy
                 $"Stock insuficiente en lote '{lot.LotNumber}'. Disponible: {lot.Quantity}.");
         }
 
-        lot.Quantity -= ctx.Quantity;
+        await DeductLotForSaleAsync(ctx, lot, ctx.Quantity, cancellationToken);
+        return Result<object?>.Ok(null);
+    }
+
+    /// <summary>
+    /// FEFO: reparte la cantidad entre lotes no vencidos en orden de vencimiento
+    /// hasta satisfacer la línea; falla si el total FEFO no alcanza.
+    /// </summary>
+    private async Task<Result<object?>> ApplySaleFefoSplitAsync(
+        StockApplyContext ctx,
+        CancellationToken cancellationToken)
+    {
+        var lots = await LoadFefoLotsAsync(ctx.Product.Id, cancellationToken);
+        if (lots.Count == 0)
+        {
+            return Result<object?>.Failure(
+                "stock.no_fefo_lot",
+                "No hay lotes no vencidos con stock para este producto.");
+        }
+
+        var available = lots.Sum(l => l.Quantity);
+        if (available < ctx.Quantity)
+        {
+            return Result<object?>.Failure(
+                "stock.insufficient",
+                $"Stock insuficiente en lotes FEFO. Disponible: {available}.");
+        }
+
+        var remaining = ctx.Quantity;
+        foreach (var lot in lots)
+        {
+            if (remaining <= 0m)
+                break;
+
+            var take = Math.Min(lot.Quantity, remaining);
+            if (take <= 0m)
+                continue;
+
+            await DeductLotForSaleAsync(ctx, lot, take, cancellationToken);
+            remaining -= take;
+        }
+
+        if (remaining > 0m)
+        {
+            return Result<object?>.Failure(
+                "stock.insufficient",
+                "Stock insuficiente en lotes FEFO.");
+        }
+
+        return Result<object?>.Ok(null);
+    }
+
+    private async Task DeductLotForSaleAsync(
+        StockApplyContext ctx,
+        StockLot lot,
+        decimal quantity,
+        CancellationToken cancellationToken)
+    {
+        lot.Quantity -= quantity;
         await SyncProductStockAsync(ctx.Product, cancellationToken);
-        ctx.AppliedStockLotId = lot.Id;
-        ctx.AppliedLotNumber = lot.LotNumber;
-        ctx.AppliedExpiration = lot.ExpirationDate;
+
+        ctx.AppliedAllocations.Add(
+            new StockLotAllocation(lot.Id, quantity, lot.LotNumber, lot.ExpirationDate));
+
+        if (ctx.AppliedStockLotId is null)
+        {
+            ctx.AppliedStockLotId = lot.Id;
+            ctx.AppliedLotNumber = lot.LotNumber;
+            ctx.AppliedExpiration = lot.ExpirationDate;
+        }
 
         StockMovementWriter.AddMovement(
             _db,
             ctx.Product,
             StockMovementType.Sale,
-            -ctx.Quantity,
+            -quantity,
             lot.Id,
             lot.LotNumber,
             lot.ExpirationDate,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
-
-        return Result<object?>.Ok(null);
     }
 
     public Task<Result<object?>> ApplyPurchaseAsync(StockApplyContext ctx, CancellationToken cancellationToken = default)
@@ -134,9 +201,7 @@ public sealed class PharmacyStockPolicy : IStockPolicy
         if (lot is null)
             return Result<object?>.Failure("stock.lot_not_found", "El lote no existe o no pertenece al producto.");
 
-        if (lot.ExpirationDate < DateOnly.FromDateTime(DateTime.UtcNow))
-            return Result<object?>.Failure("stock.lot_expired", $"El lote '{lot.LotNumber}' está vencido.");
-
+        // Egreso por ajuste (p. ej. ExpiredDisposal) sí puede descontar lotes vencidos; la venta no.
         var qty = Math.Abs(ctx.Quantity);
         if (lot.Quantity < qty)
         {
@@ -159,7 +224,8 @@ public sealed class PharmacyStockPolicy : IStockPolicy
             lot.Id,
             lot.LotNumber,
             lot.ExpirationDate,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
 
@@ -177,7 +243,7 @@ public sealed class PharmacyStockPolicy : IStockPolicy
             Quantity = ctx.Quantity,
             LotNumber = string.IsNullOrWhiteSpace(ctx.LotNumber) ? DefaultLotNumber : ctx.LotNumber.Trim(),
             ExpirationDate = ctx.ExpirationDate ?? DefaultExpiration,
-            Reason = ctx.Reason ?? "Stock inicial",
+            ReasonNote = string.IsNullOrWhiteSpace(ctx.ReasonNote) ? "Stock inicial" : ctx.ReasonNote,
             ReferenceId = ctx.ReferenceId,
             CreatedByUserId = ctx.CreatedByUserId
         };
@@ -242,7 +308,8 @@ public sealed class PharmacyStockPolicy : IStockPolicy
             lot.Id,
             lot.LotNumber,
             lot.ExpirationDate,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
 
@@ -259,6 +326,19 @@ public sealed class PharmacyStockPolicy : IStockPolicy
 
         return await _db.StockLots
             .FirstOrDefaultAsync(l => l.Id == stockLotId && l.ProductId == productId, cancellationToken);
+    }
+
+    /// <summary>
+    /// FEFO: lotes no vencidos con cantidad &gt; 0, ordenados por vencimiento y número de lote.
+    /// </summary>
+    private async Task<List<StockLot>> LoadFefoLotsAsync(Guid productId, CancellationToken cancellationToken)
+    {
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        return await _db.StockLots
+            .Where(l => l.ProductId == productId && l.ExpirationDate >= today && l.Quantity > 0m)
+            .OrderBy(l => l.ExpirationDate)
+            .ThenBy(l => l.LotNumber)
+            .ToListAsync(cancellationToken);
     }
 
     private async Task SyncProductStockAsync(Product product, CancellationToken cancellationToken)

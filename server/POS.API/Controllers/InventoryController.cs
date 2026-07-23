@@ -34,7 +34,8 @@ public sealed class InventoryController : ControllerBase
             new AdjustStockCommand(
                 request.ProductId,
                 request.QuantityDelta,
-                request.Reason ?? string.Empty,
+                request.ReasonCode ?? string.Empty,
+                request.Note,
                 request.StockLotId,
                 request.LotNumber,
                 request.ExpirationDate),
@@ -47,15 +48,40 @@ public sealed class InventoryController : ControllerBase
         return Ok(body);
     }
 
+    [HttpGet("adjustment-reasons")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<AdjustmentReasonOptionResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetAdjustmentReasons(CancellationToken cancellationToken)
+    {
+        var result = await _queries.GetAdjustmentReasonsAsync(cancellationToken);
+        return Ok(ApiResponse<IReadOnlyList<AdjustmentReasonOptionResponse>>.FromResult(result));
+    }
+
+    [HttpGet("expiry-alerts")]
+    [ProducesResponseType(typeof(ApiResponse<ExpiryAlertsResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<ExpiryAlertsResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> GetExpiryAlerts(
+        [FromQuery] int? withinDays,
+        CancellationToken cancellationToken)
+    {
+        var result = await _queries.GetExpiryAlertsAsync(withinDays, cancellationToken);
+        var body = ApiResponse<ExpiryAlertsResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return BadRequest(body);
+
+        return Ok(body);
+    }
+
     [HttpGet("movements")]
     [ProducesResponseType(typeof(ApiResponse<PagedStockMovementsResponse>), StatusCodes.Status200OK)]
     public async Task<IActionResult> GetMovements(
         [FromQuery] Guid? productId,
+        [FromQuery] DateTime? from,
+        [FromQuery] DateTime? to,
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        var result = await _queries.GetMovementsAsync(productId, page, pageSize, cancellationToken);
+        var result = await _queries.GetMovementsAsync(productId, page, pageSize, from, to, cancellationToken);
         return Ok(ApiResponse<PagedStockMovementsResponse>.FromResult(result));
     }
 
@@ -82,7 +108,9 @@ public sealed class InventoryController : ControllerBase
 
         public decimal QuantityDelta { get; init; }
 
-        public string? Reason { get; init; }
+        public string? ReasonCode { get; init; }
+
+        public string? Note { get; init; }
 
         public Guid? StockLotId { get; init; }
 

@@ -1,9 +1,12 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using POS.Application.Common;
 using POS.Application.Interfaces;
 using POS.Domain.Entities;
+using POS.Infrastructure.Configuration;
+using POS.Infrastructure.Email;
 
 namespace POS.Infrastructure.TenantUsers;
 
@@ -11,15 +14,21 @@ public sealed class RequestTenantUserPasswordResetHandler : IRequestTenantUserPa
 {
     private readonly UserManager<ApplicationUser> _users;
     private readonly ICurrentUserService _current;
+    private readonly IEmailSender _emailSender;
+    private readonly EmailOptions _emailOptions;
     private readonly ILogger<RequestTenantUserPasswordResetHandler> _logger;
 
     public RequestTenantUserPasswordResetHandler(
         UserManager<ApplicationUser> users,
         ICurrentUserService current,
+        IEmailSender emailSender,
+        IOptions<EmailOptions> emailOptions,
         ILogger<RequestTenantUserPasswordResetHandler> logger)
     {
         _users = users;
         _current = current;
+        _emailSender = emailSender;
+        _emailOptions = emailOptions.Value;
         _logger = logger;
     }
 
@@ -38,12 +47,29 @@ public sealed class RequestTenantUserPasswordResetHandler : IRequestTenantUserPa
         if (user is null)
             return Result<object?>.Failure("tenant.users.not_found", "Usuario no encontrado.");
 
-        var token = await _users.GeneratePasswordResetTokenAsync(user);
-        _logger.LogInformation(
-            "Password reset solicitado para {Email}; token generado (mailer no conectado). Len={Len}",
-            user.Email,
-            token?.Length ?? 0);
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return Result<object?>.Failure(
+                "tenant.users.email_missing",
+                "El usuario no tiene email para enviar el restablecimiento.");
+        }
 
+        var token = await _users.GeneratePasswordResetTokenAsync(user);
+        try
+        {
+            await _emailSender.SendAsync(
+                AuthEmailComposer.PasswordReset(_emailOptions, user.Email, token),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo enviar email de reset a {Email}", user.Email);
+            return Result<object?>.Failure(
+                "tenant.users.email_send_failed",
+                "No se pudo enviar el correo de restablecimiento.");
+        }
+
+        _logger.LogInformation("Password reset enviado a {Email}", user.Email);
         return Result<object?>.Ok(null);
     }
 }

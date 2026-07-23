@@ -9,6 +9,10 @@ public static class TenantLifecycleRules
 
     public static bool CanSuspend(TenantStatus status) => status == TenantStatus.Active;
 
+    public static bool CanUnsuspend(TenantStatus status) => status == TenantStatus.Suspended;
+
     public static bool CanClose(TenantStatus status) =>
         status == TenantStatus.Active || status == TenantStatus.Suspended;
+
+    public static bool CanReopen(TenantStatus status) => status == TenantStatus.Closed;
 }

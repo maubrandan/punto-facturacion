@@ -75,11 +75,11 @@
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
+      "projectUniqueName": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
       "projectName": "POS.Application",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
       "packagesPath": "C:\\Users\\xc_18\\.nuget\\packages\\",
-      "outputPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\obj\\",
+      "outputPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\obj\\",
       "projectStyle": "PackageReference",
       "fallbackFolders": [
         "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -101,8 +101,8 @@
           "framework": "net10.0",
           "targetAlias": "net10.0",
           "projectReferences": {
-            "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
-              "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
+            "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
+              "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
             }
           }
         }

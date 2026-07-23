@@ -24,6 +24,9 @@ export const errorInterceptor: HttpInterceptorFn = (req, next) => {
       const isAuthEndpoint =
         req.url.includes('/api/auth/login') ||
         req.url.includes('/api/auth/register') ||
+        req.url.includes('/api/auth/confirm-email') ||
+        req.url.includes('/api/auth/reset-password') ||
+        req.url.includes('/api/auth/forgot-password') ||
         req.url.includes('/api/platform/auth/login');
 
       if (err.status === 401 && !isAuthEndpoint) {

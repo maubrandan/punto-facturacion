@@ -203,7 +203,7 @@ public sealed class ProductsController : ControllerBase
                         Quantity = request.Stock,
                         LotNumber = request.LotNumber,
                         ExpirationDate = request.ExpirationDate,
-                        Reason = "Stock inicial",
+                        ReasonNote = "Stock inicial",
                         ReferenceId = product.Id,
                         CreatedByUserId = _currentUser.UserId ?? string.Empty
                     },

@@ -19,6 +19,15 @@ public sealed class SaleLineResponse
     public string ProductName { get; init; } = string.Empty;
 
     public string ProductExtendedDataJson { get; init; } = "{}";
+
+    /// <summary>
+    /// Lote debitado (Farmacia). En FEFO multi-lote la venta puede devolver
+    /// una línea de respuesta por cada lote consumido (mismo producto).
+    /// </summary>
+    public Guid? StockLotId { get; init; }
+
+    /// <summary>Número de lote aplicado (Farmacia), si corresponde.</summary>
+    public string? LotNumber { get; init; }
 }
 
 public sealed class SalePaymentResponse

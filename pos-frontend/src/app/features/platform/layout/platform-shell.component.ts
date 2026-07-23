@@ -1,5 +1,6 @@
-import { Component, inject } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
+import { PLATFORM_ROLE_LABELS, type PlatformRole } from '../../../core/models/platform-user.model';
 import { PlatformAuthService } from '../../../core/services/platform-auth.service';
 
 @Component({
@@ -14,7 +15,7 @@ import { PlatformAuthService } from '../../../core/services/platform-auth.servic
           <p class="mt-1 text-xs text-slate-400">Operación cross-tenant</p>
 
           <nav class="mt-4 space-y-1.5">
-            @for (item of navItems; track item.link) {
+            @for (item of navItems(); track item.link) {
               <a
                 [routerLink]="item.link"
                 routerLinkActive="bg-indigo-500/25 border-indigo-500/40 text-slate-100"
@@ -41,10 +42,31 @@ import { PlatformAuthService } from '../../../core/services/platform-auth.servic
             @if (auth.currentUser(); as user) {
               <div class="mt-3 flex flex-wrap items-center gap-2">
                 <span class="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-1 text-xs text-slate-200">{{ user.email }}</span>
-                <span class="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-1 text-xs text-slate-300">Roles: {{ user.roles.join(', ') || '—' }}</span>
+                <span class="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-1 text-xs text-slate-300">
+                  Roles: {{ roleLabels().join(', ') || '—' }}
+                </span>
+                <span
+                  class="rounded-lg border px-3 py-1 text-xs"
+                  [class]="
+                    auth.canOperate()
+                      ? 'border-emerald-700/50 bg-emerald-900/30 text-emerald-200'
+                      : 'border-amber-700/50 bg-amber-900/30 text-amber-200'
+                  "
+                >
+                  {{ auth.canOperate() ? 'Modo operaciones' : 'Modo solo lectura / soporte' }}
+                </span>
               </div>
             }
           </header>
+
+          @if (!auth.canOperate()) {
+            <div class="rounded-xl border border-amber-700/40 bg-amber-900/20 px-4 py-3 text-sm text-amber-100">
+              Tu rol no permite mutaciones de tenants (alta, ciclo de vida, entitlements, fiscal ni bloqueo de usuarios).
+              @if (auth.canImpersonate()) {
+                Podés consultar el directorio y, si el tenant está Active, iniciar sesión de soporte.
+              }
+            </div>
+          }
 
           <main>
             <router-outlet />
@@ -58,11 +80,21 @@ export class PlatformShellComponent {
   readonly auth = inject(PlatformAuthService);
   private readonly router = inject(Router);
 
-  readonly navItems: ReadonlyArray<{ label: string; link: string; exact?: boolean }> = [
-    { label: 'Dashboard', link: '/platform/dashboard', exact: true },
-    { label: 'Tenants', link: '/platform/tenants', exact: true },
-    { label: 'Auditoría', link: '/platform/audit', exact: true }
-  ];
+  readonly roleLabels = computed(() =>
+    this.auth.roles().map((r) => PLATFORM_ROLE_LABELS[r as PlatformRole] ?? r)
+  );
+
+  readonly navItems = computed(() => {
+    const items: Array<{ label: string; link: string; exact?: boolean }> = [
+      { label: 'Dashboard', link: '/platform/dashboard', exact: true },
+      { label: 'Tenants', link: '/platform/tenants', exact: true },
+      { label: 'Auditoría', link: '/platform/audit', exact: true }
+    ];
+    if (this.auth.canManageOperators()) {
+      items.push({ label: 'Operadores', link: '/platform/operators', exact: true });
+    }
+    return items;
+  });
 
   logout(): void {
     this.auth.logout();

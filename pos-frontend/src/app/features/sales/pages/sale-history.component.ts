@@ -199,9 +199,12 @@ interface Envelope<T> {
                 <li class="rounded-lg border border-slate-800 bg-slate-950 p-3">
                   <p class="font-medium text-slate-100">{{ line.productName }}</p>
                   <p class="text-xs text-slate-500">
-                    Cant. {{ line.quantity }} · Neto
+                    Cant. {{ line.quantity | number: '1.0-3' }} · Neto
                     {{ line.lineNetSubtotal | number: '1.2-2' }} · IVA
                     {{ line.lineTaxAmount | number: '1.2-2' }}
+                    @if (line.lotNumber) {
+                      · Lote {{ line.lotNumber }}
+                    }
                   </p>
                   <p class="mt-1 text-right text-sm font-medium text-slate-200">
                     Línea: {{ line.lineTotal | number: '1.2-2' }}

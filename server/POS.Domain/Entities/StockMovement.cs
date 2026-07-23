@@ -28,7 +28,14 @@ public sealed class StockMovement : ITenantEntity
 
     public DateOnly? ExpirationSnapshot { get; set; }
 
-    public string? Reason { get; set; }
+    /// <summary>
+    /// Código tipado del motivo (ajustes). Nulo en venta/compra/seed.
+    /// Ver <see cref="StockAdjustmentReasonCodes"/>.
+    /// </summary>
+    public string? ReasonCode { get; set; }
+
+    /// <summary>Nota libre opcional (ajustes) o texto legado/seed.</summary>
+    public string? ReasonNote { get; set; }
 
     public Guid? ReferenceId { get; set; }
 

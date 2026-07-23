@@ -15,7 +15,8 @@ internal static class StockMovementWriter
         Guid? stockLotId,
         string? lotNumberSnapshot,
         DateOnly? expirationSnapshot,
-        string? reason,
+        string? reasonCode,
+        string? reasonNote,
         Guid? referenceId,
         string createdByUserId)
     {
@@ -30,7 +31,8 @@ internal static class StockMovementWriter
                 StockLotId = stockLotId,
                 LotNumberSnapshot = lotNumberSnapshot,
                 ExpirationSnapshot = expirationSnapshot,
-                Reason = string.IsNullOrWhiteSpace(reason) ? null : reason.Trim(),
+                ReasonCode = string.IsNullOrWhiteSpace(reasonCode) ? null : reasonCode.Trim(),
+                ReasonNote = string.IsNullOrWhiteSpace(reasonNote) ? null : reasonNote.Trim(),
                 ReferenceId = referenceId,
                 CreatedByUserId = string.IsNullOrWhiteSpace(createdByUserId) ? "system" : createdByUserId,
                 CreatedAt = DateTime.UtcNow
@@ -76,6 +78,18 @@ internal static class StockQuantityRules
             return Result<object?>.Failure(
                 "stock.quantity_scale",
                 $"La cantidad admite como máximo {maxScale} decimales.");
+        }
+
+        return Result<object?>.Ok(null);
+    }
+
+    public static Result<object?> RequireKnownAdjustmentReason(string? reasonCode)
+    {
+        if (string.IsNullOrWhiteSpace(reasonCode) || !StockAdjustmentReasonCodes.IsKnown(reasonCode))
+        {
+            return Result<object?>.Failure(
+                "stock.reason_invalid",
+                "Debe indicar un motivo de ajuste válido.");
         }
 
         return Result<object?>.Ok(null);

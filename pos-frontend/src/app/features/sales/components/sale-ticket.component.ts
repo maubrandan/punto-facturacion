@@ -88,13 +88,22 @@ import { paymentMethodLabel } from '../../../core/models/payment.model';
           <tbody>
             @for (line of sale()!.lines; track line.id) {
               <tr>
-                <td>{{ line.productName }}</td>
-                <td class="col-n">{{ line.quantity }}</td>
+                <td>
+                  {{ line.productName }}
+                  @if (line.lotNumber) {
+                    <div class="ticket-lot">Lote {{ line.lotNumber }}</div>
+                  }
+                </td>
+                <td class="col-n">{{ line.quantity | number: '1.0-3' }}</td>
                 <td class="col-total">{{ line.lineTotal | number: '1.2-2' }}</td>
               </tr>
             }
           </tbody>
         </table>
+
+        @if (lotLineCount() > 1) {
+          <p class="ticket-lot-summary">Consumió {{ lotLineCount() }} lotes</p>
+        }
 
         <div class="ticket-totals">
           <div class="line">
@@ -140,6 +149,11 @@ export class SaleTicketComponent {
   readonly storeLabel = input<string>('PUNTO FACTURACIÓN');
 
   readonly fiscalDoc = computed(() => this.fiscalDocument());
+
+  /** Líneas con lote (FEFO multi-lote en Farmacia). */
+  readonly lotLineCount = computed(
+    () => this.sale()?.lines.filter((l) => !!l.lotNumber || !!l.stockLotId).length ?? 0
+  );
 
   readonly qrImageUrl = computed(() => {
     const url = this.fiscalDocument()?.afipQrUrl;

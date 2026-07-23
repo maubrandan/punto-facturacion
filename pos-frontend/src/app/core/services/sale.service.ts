@@ -32,6 +32,8 @@ export interface SaleLineResponse {
   lineTaxAmount: number;
   unitNetPrice: number;
   taxRate: number;
+  stockLotId?: string | null;
+  lotNumber?: string | null;
 }
 
 export interface SaleSummaryRow {
@@ -58,6 +60,8 @@ export interface SaleDetailLineView {
   lineNetSubtotal: number;
   lineTaxAmount: number;
   lineTotal: number;
+  stockLotId?: string | null;
+  lotNumber?: string | null;
 }
 
 export interface SaleDetailView {
@@ -108,6 +112,66 @@ export interface SalesReportResult {
   byCashier: SalesReportCashierBreakdown[];
 }
 
+export interface MarginReportSkuItem {
+  productId: string;
+  sku: string;
+  productName: string;
+  quantity: number;
+  revenueNet: number;
+  costNet: number | null;
+  marginNet: number | null;
+  hasCost: boolean;
+}
+
+export interface MarginReportResult {
+  startDate: string;
+  endDate: string;
+  revenueNet: number;
+  revenueNetWithCost: number;
+  revenueNetWithoutCost: number;
+  costNet: number;
+  marginNet: number;
+  linesWithCost: number;
+  linesWithoutCost: number;
+  bySku: MarginReportSkuItem[];
+}
+
+export type TopSkusSortBy = 'quantity' | 'revenue';
+
+export interface TopSkuReportItem {
+  productId: string;
+  sku: string;
+  productName: string;
+  quantity: number;
+  revenueNet: number;
+  revenueTotal: number;
+}
+
+export interface TopSkusReportResult {
+  startDate: string;
+  endDate: string;
+  sortBy: TopSkusSortBy | string;
+  items: TopSkuReportItem[];
+}
+
+export type SalesPeriod = 'day' | 'week' | 'month';
+
+export interface SalesByPeriodBucketItem {
+  periodStart: string;
+  periodEnd: string;
+  totalSalesAmount: number;
+  salesCount: number;
+}
+
+export interface SalesByPeriodReportResult {
+  startDate: string;
+  endDate: string;
+  period: SalesPeriod | string;
+  totalSalesAmount: number;
+  salesCount: number;
+  buckets: SalesByPeriodBucketItem[];
+}
+
 export interface SaleResponse {
   id: string;
   date: string;
@@ -143,7 +207,9 @@ export function saleResponseToDetailView(
       quantity: l.quantity,
       lineNetSubtotal: l.lineNetSubtotal,
       lineTaxAmount: l.lineTaxAmount,
-      lineTotal: l.lineNetSubtotal + l.lineTaxAmount
+      lineTotal: l.lineNetSubtotal + l.lineTaxAmount,
+      stockLotId: l.stockLotId ?? null,
+      lotNumber: l.lotNumber ?? null
     }))
   };
 }
@@ -235,6 +301,63 @@ export class SaleService {
     }
     return this.http
       .get<ApiResponse<SalesReportResult>>(`${this.apiBaseUrl}/report`, { params })
+      .pipe(map((response) => this.requireSuccessData(response)));
+  }
+
+  getMarginReport(filters?: { startDate?: string; endDate?: string }) {
+    let params = new HttpParams();
+    if (filters?.startDate) {
+      params = params.set('startDate', filters.startDate);
+    }
+    if (filters?.endDate) {
+      params = params.set('endDate', filters.endDate);
+    }
+    return this.http
+      .get<ApiResponse<MarginReportResult>>(`${this.apiBaseUrl}/report/margin`, { params })
+      .pipe(map((response) => this.requireSuccessData(response)));
+  }
+
+  getTopSkusReport(filters?: {
+    startDate?: string;
+    endDate?: string;
+    sortBy?: TopSkusSortBy;
+    take?: number;
+  }) {
+    let params = new HttpParams();
+    if (filters?.startDate) {
+      params = params.set('startDate', filters.startDate);
+    }
+    if (filters?.endDate) {
+      params = params.set('endDate', filters.endDate);
+    }
+    if (filters?.sortBy) {
+      params = params.set('sortBy', filters.sortBy);
+    }
+    if (filters?.take != null) {
+      params = params.set('take', String(filters.take));
+    }
+    return this.http
+      .get<ApiResponse<TopSkusReportResult>>(`${this.apiBaseUrl}/report/top-skus`, { params })
+      .pipe(map((response) => this.requireSuccessData(response)));
+  }
+
+  getSalesByPeriodReport(filters?: {
+    startDate?: string;
+    endDate?: string;
+    period?: SalesPeriod;
+  }) {
+    let params = new HttpParams();
+    if (filters?.startDate) {
+      params = params.set('startDate', filters.startDate);
+    }
+    if (filters?.endDate) {
+      params = params.set('endDate', filters.endDate);
+    }
+    if (filters?.period) {
+      params = params.set('period', filters.period);
+    }
+    return this.http
+      .get<ApiResponse<SalesByPeriodReportResult>>(`${this.apiBaseUrl}/report/by-period`, { params })
       .pipe(map((response) => this.requireSuccessData(response)));
   }
 

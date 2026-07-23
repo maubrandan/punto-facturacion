@@ -1,8 +1,8 @@
 {
   "version": 2,
-  "dgSpecHash": "iT8IZ0LIZHY=",
+  "dgSpecHash": "qbxrN7BkvHg=",
   "success": true,
-  "projectFilePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+  "projectFilePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
   "expectedPackageFiles": [
     "C:\\Users\\xc_18\\.nuget\\packages\\azure.core\\1.47.1\\azure.core.1.47.1.nupkg.sha512",
     "C:\\Users\\xc_18\\.nuget\\packages\\azure.identity\\1.14.2\\azure.identity.1.14.2.nupkg.sha512",
@@ -62,9 +62,9 @@
       "code": "NU1510",
       "level": "Warning",
       "message": "PackageReference System.Security.Cryptography.Xml no se eliminará. Considere la posibilidad de quitar este paquete de las dependencias, ya que es probable que no sea necesario.",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -74,9 +74,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"Microsoft.OpenApi\" 2.0.0 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-v5pm-xwqc-g5wc",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "Microsoft.OpenApi",
       "targetGraphs": [
         "net10.0"
@@ -86,9 +86,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-23rf-6693-g89p",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -98,9 +98,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-37gx-xxp4-5rgx",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -110,9 +110,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-8q5v-6pqq-x66h",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -122,9 +122,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-cvvh-rhrc-wg4q",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -134,9 +134,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-g8r8-53c2-pm3f",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -146,9 +146,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-mmjf-rqrv-855v",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"
@@ -158,9 +158,9 @@
       "code": "NU1903",
       "level": "Warning",
       "message": "El paquete \"System.Security.Cryptography.Xml\" 9.0.2 tiene una vulnerabilidad de gravedad alta conocida, https://github.com/advisories/GHSA-w3x6-4m5h-cxqf",
-      "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "warningLevel": 1,
-      "filePath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+      "filePath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
       "libraryId": "System.Security.Cryptography.Xml",
       "targetGraphs": [
         "net10.0"

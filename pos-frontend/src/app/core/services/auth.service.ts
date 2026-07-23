@@ -18,6 +18,21 @@ interface LoginRequest {
   password: string;
 }
 
+interface ConfirmEmailRequest {
+  email: string;
+  token: string;
+}
+
+interface ResetPasswordRequest {
+  email: string;
+  token: string;
+  newPassword: string;
+}
+
+interface ForgotPasswordRequest {
+  email: string;
+}
+
 interface AuthResponse {
   accessToken: string;
   tokenType: string;
@@ -27,6 +42,10 @@ interface AuthResponse {
   tenantId: string;
   businessType?: string;
   roles?: string[];
+}
+
+interface AuthMessageResponse {
+  message: string;
 }
 
 interface ApiErrorBody {
@@ -83,6 +102,24 @@ export class AuthService {
         tap((auth) => this.setSession(auth.accessToken)),
         map((auth) => this.toUser(auth))
       );
+  }
+
+  confirmEmail(payload: ConfirmEmailRequest): Observable<AuthMessageResponse> {
+    return this.http
+      .post<ApiResponse<AuthMessageResponse>>(`${this.apiBaseUrl}/confirm-email`, payload)
+      .pipe(map((response) => this.requireSuccessMessage(response)));
+  }
+
+  resetPassword(payload: ResetPasswordRequest): Observable<AuthMessageResponse> {
+    return this.http
+      .post<ApiResponse<AuthMessageResponse>>(`${this.apiBaseUrl}/reset-password`, payload)
+      .pipe(map((response) => this.requireSuccessMessage(response)));
+  }
+
+  forgotPassword(payload: ForgotPasswordRequest): Observable<AuthMessageResponse> {
+    return this.http
+      .post<ApiResponse<AuthMessageResponse>>(`${this.apiBaseUrl}/forgot-password`, payload)
+      .pipe(map((response) => this.requireSuccessMessage(response)));
   }
 
   logout(): void {
@@ -146,6 +183,14 @@ export class AuthService {
   private requireSuccessData(response: ApiResponse<AuthResponse>): AuthResponse {
     if (!response.success || !response.data) {
       throw new Error(response.error?.message ?? 'No se pudo autenticar.');
+    }
+
+    return response.data;
+  }
+
+  private requireSuccessMessage(response: ApiResponse<AuthMessageResponse>): AuthMessageResponse {
+    if (!response.success || !response.data) {
+      throw new Error(response.error?.message ?? 'No se pudo completar la operación.');
     }
 
     return response.data;

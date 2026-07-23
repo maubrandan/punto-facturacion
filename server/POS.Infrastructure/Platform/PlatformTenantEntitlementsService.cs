@@ -68,27 +68,18 @@ public sealed class PlatformTenantEntitlementsService : IPlatformTenantEntitleme
 
         var justificationTrim = justification.Trim();
         var now = DateTime.UtcNow;
+        var caps = new TenantEntitlementsDto
+        {
+            MaxProducts = cmd.MaxProducts,
+            MaxTenantUsers = cmd.MaxTenantUsers,
+            SalesEnabled = cmd.SalesEnabled
+        };
         var existing = await _db.Set<TenantEntitlement>()
             .FirstOrDefaultAsync(e => e.TenantId == cmd.TenantId, cancellationToken);
         if (existing is null)
-        {
-            _db.Set<TenantEntitlement>().Add(
-                new TenantEntitlement
-                {
-                    TenantId = cmd.TenantId,
-                    MaxProducts = cmd.MaxProducts,
-                    MaxTenantUsers = cmd.MaxTenantUsers,
-                    SalesEnabled = cmd.SalesEnabled,
-                    UpdatedAtUtc = now
-                });
-        }
+            _db.Set<TenantEntitlement>().Add(TenantEntitlementsMapper.ToNewRow(cmd.TenantId, caps, now));
         else
-        {
-            existing.MaxProducts = cmd.MaxProducts;
-            existing.MaxTenantUsers = cmd.MaxTenantUsers;
-            existing.SalesEnabled = cmd.SalesEnabled;
-            existing.UpdatedAtUtc = now;
-        }
+            TenantEntitlementsMapper.Apply(existing, caps, now);
 
         await _db.SaveChangesAsync(cancellationToken);
 

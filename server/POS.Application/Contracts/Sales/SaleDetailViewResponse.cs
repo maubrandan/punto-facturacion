@@ -19,6 +19,12 @@ public sealed class SaleDetailLineViewResponse
     public decimal LineTaxAmount { get; init; }
 
     public decimal LineTotal { get; init; }
+
+    /// <summary>Lote debitado (Farmacia). Null en otros rubros.</summary>
+    public Guid? StockLotId { get; init; }
+
+    /// <summary>Número de lote (si existe en StockLots).</summary>
+    public string? LotNumber { get; init; }
 }
 
 public sealed class SaleDetailViewResponse

@@ -6,6 +6,7 @@ import { finalize, firstValueFrom } from 'rxjs';
 import { Product } from '../../../core/models/product.model';
 import { AuthService } from '../../../core/services/auth.service';
 import {
+  AdjustmentReasonOption,
   InventoryService,
   type StockLot,
   type StockMovement
@@ -85,9 +86,24 @@ import { ProductService } from '../../../core/services/product.service';
         }
 
         <div class="mt-8">
-          <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-300">
-            Movimientos recientes
-          </h2>
+          <div class="flex flex-wrap items-end justify-between gap-3">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-300">
+              Movimientos (kardex)
+            </h2>
+            <div class="flex flex-wrap items-end gap-2">
+              <label class="block text-xs text-slate-400">
+                Desde
+                <input type="date" class="input-brand mt-1" [(ngModel)]="movementsFrom" />
+              </label>
+              <label class="block text-xs text-slate-400">
+                Hasta
+                <input type="date" class="input-brand mt-1" [(ngModel)]="movementsTo" />
+              </label>
+              <button type="button" class="btn-secondary-sm" (click)="reloadMovements()">
+                Filtrar
+              </button>
+            </div>
+          </div>
           @if (movementsError()) {
             <p class="mt-2 text-sm text-rose-300">{{ movementsError() }}</p>
           } @else {
@@ -98,6 +114,7 @@ import { ProductService } from '../../../core/services/product.service';
                     <th class="py-2 pr-3">Fecha</th>
                     <th class="py-2 pr-3">Producto</th>
                     <th class="py-2 pr-3">Tipo</th>
+                    <th class="py-2 pr-3">Motivo</th>
                     <th class="py-2 pr-3 text-right">Delta</th>
                     <th class="py-2 pr-0 text-right">Stock</th>
                   </tr>
@@ -115,6 +132,12 @@ import { ProductService } from '../../../core/services/product.service';
                         }
                       </td>
                       <td class="py-2 pr-3">{{ m.type }}</td>
+                      <td class="py-2 pr-3 text-xs text-slate-400">
+                        {{ reasonLabel(m.reasonCode) }}
+                        @if (m.reasonNote) {
+                          <span class="block text-slate-500">{{ m.reasonNote }}</span>
+                        }
+                      </td>
                       <td class="py-2 pr-3 text-right tabular-nums" [class.text-rose-300]="m.quantityDelta < 0">
                         {{ m.quantityDelta | number: '1.0-3' }}
                       </td>
@@ -124,12 +147,15 @@ import { ProductService } from '../../../core/services/product.service';
                     </tr>
                   } @empty {
                     <tr>
-                      <td class="py-4 text-slate-500" colspan="5">Sin movimientos aún.</td>
+                      <td class="py-4 text-slate-500" colspan="6">Sin movimientos en el período.</td>
                     </tr>
                   }
                 </tbody>
               </table>
             </div>
+            <p class="mt-2 text-xs text-slate-500">
+              {{ movementsTotal() }} movimiento(s) · página {{ movementsPage() }}
+            </p>
           }
         </div>
 
@@ -153,7 +179,21 @@ import { ProductService } from '../../../core/services/product.service';
             />
 
             <label class="mt-3 mb-1 block text-sm text-slate-300">Motivo</label>
-            <input type="text" class="input-brand" [(ngModel)]="adjustReason" placeholder="Conteo / merma / ..." />
+            <select class="input-brand" [(ngModel)]="adjustReasonCode">
+              <option value="">Seleccione…</option>
+              @for (r of reasonOptions(); track r.code) {
+                <option [value]="r.code">{{ r.label }}</option>
+              }
+            </select>
+
+            <label class="mt-3 mb-1 block text-sm text-slate-300">Nota (opcional)</label>
+            <input
+              type="text"
+              class="input-brand"
+              [(ngModel)]="adjustNote"
+              maxlength="512"
+              placeholder="Detalle adicional"
+            />
 
             @if (isFarmacia()) {
               @if (adjustDelta >= 0) {
@@ -208,6 +248,9 @@ export class InventoryPageComponent implements OnInit {
 
   readonly products = signal<readonly Product[]>([]);
   readonly movements = signal<readonly StockMovement[]>([]);
+  readonly movementsTotal = signal(0);
+  readonly movementsPage = signal(1);
+  readonly reasonOptions = signal<readonly AdjustmentReasonOption[]>([]);
   readonly loading = signal(true);
   readonly loadError = signal<string | null>(null);
   readonly movementsError = signal<string | null>(null);
@@ -218,10 +261,13 @@ export class InventoryPageComponent implements OnInit {
   readonly adjustError = signal<string | null>(null);
 
   adjustDelta = 0;
-  adjustReason = '';
+  adjustReasonCode = '';
+  adjustNote = '';
   adjustLotNumber = '';
   adjustExpiration = '';
   adjustLotId = '';
+  movementsFrom = '';
+  movementsTo = '';
 
   readonly isFarmacia = computed(
     () => this.authService.currentUser()?.businessType === 'farmacia'
@@ -230,8 +276,27 @@ export class InventoryPageComponent implements OnInit {
     this.authService.currentUser()?.businessType === 'ferreteria' ? '0.001' : '1'
   );
 
+  private readonly reasonLabelByCode = computed(() => {
+    const map = new Map<string, string>();
+    for (const r of this.reasonOptions()) {
+      map.set(r.code, r.label);
+    }
+    return map;
+  });
+
   ngOnInit(): void {
+    this.inventoryService.getAdjustmentReasons().subscribe({
+      next: (list) => this.reasonOptions.set(list),
+      error: () => this.reasonOptions.set([])
+    });
     this.reload();
+  }
+
+  reasonLabel(code: string | null): string {
+    if (!code) {
+      return '—';
+    }
+    return this.reasonLabelByCode().get(code) ?? code;
   }
 
   reload(): void {
@@ -246,17 +311,36 @@ export class InventoryPageComponent implements OnInit {
           this.loadError.set(e instanceof Error ? e.message : 'No se pudo cargar el inventario.')
       });
 
-    this.inventoryService.getMovements({ page: 1, pageSize: 30 }).subscribe({
-      next: (page) => this.movements.set(page.items),
-      error: (e) =>
-        this.movementsError.set(e instanceof Error ? e.message : 'No se pudieron cargar movimientos.')
-    });
+    this.reloadMovements();
+  }
+
+  reloadMovements(): void {
+    this.movementsError.set(null);
+    this.inventoryService
+      .getMovements({
+        page: 1,
+        pageSize: 50,
+        from: this.toUtcStartIso(this.movementsFrom),
+        to: this.toUtcEndIso(this.movementsTo)
+      })
+      .subscribe({
+        next: (page) => {
+          this.movements.set(page.items);
+          this.movementsTotal.set(page.totalCount);
+          this.movementsPage.set(page.page);
+        },
+        error: (e) =>
+          this.movementsError.set(
+            e instanceof Error ? e.message : 'No se pudieron cargar movimientos.'
+          )
+      });
   }
 
   openAdjust(p: Product): void {
     this.adjustProduct.set(p);
     this.adjustDelta = 0;
-    this.adjustReason = '';
+    this.adjustReasonCode = '';
+    this.adjustNote = '';
     this.adjustLotNumber = '';
     this.adjustExpiration = '';
     this.adjustLotId = '';
@@ -283,8 +367,8 @@ export class InventoryPageComponent implements OnInit {
       this.adjustError.set('La cantidad no puede ser cero.');
       return;
     }
-    if (!this.adjustReason.trim()) {
-      this.adjustError.set('El motivo es obligatorio.');
+    if (!this.adjustReasonCode.trim()) {
+      this.adjustError.set('Seleccioná un motivo tipado.');
       return;
     }
 
@@ -294,7 +378,8 @@ export class InventoryPageComponent implements OnInit {
       .adjust({
         productId: product.id,
         quantityDelta: this.adjustDelta,
-        reason: this.adjustReason.trim(),
+        reasonCode: this.adjustReasonCode.trim(),
+        note: this.adjustNote.trim() || null,
         stockLotId: this.adjustDelta < 0 && this.isFarmacia() ? this.adjustLotId || null : null,
         lotNumber:
           this.adjustDelta > 0 && this.isFarmacia() ? this.adjustLotNumber.trim() || null : null,
@@ -310,5 +395,19 @@ export class InventoryPageComponent implements OnInit {
         this.closeAdjust();
         this.reload();
       });
+  }
+
+  private toUtcStartIso(dateOnly: string): string | undefined {
+    if (!dateOnly) {
+      return undefined;
+    }
+    return `${dateOnly}T00:00:00.000Z`;
+  }
+
+  private toUtcEndIso(dateOnly: string): string | undefined {
+    if (!dateOnly) {
+      return undefined;
+    }
+    return `${dateOnly}T23:59:59.999Z`;
   }
 }

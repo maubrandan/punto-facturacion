@@ -1,3 +1,4 @@
+using FluentValidation;
 using Microsoft.EntityFrameworkCore;
 using POS.Application.Common;
 using POS.Application.Contracts.Inventory;
@@ -13,21 +14,33 @@ public sealed class AdjustStockHandler : IAdjustStockHandler
     private readonly ApplicationDbContext _db;
     private readonly ICurrentUserService _currentUser;
     private readonly IStockPolicyFactory _policyFactory;
+    private readonly IValidator<AdjustStockCommand> _validator;
 
     public AdjustStockHandler(
         ApplicationDbContext db,
         ICurrentUserService currentUser,
-        IStockPolicyFactory policyFactory)
+        IStockPolicyFactory policyFactory,
+        IValidator<AdjustStockCommand> validator)
     {
         _db = db;
         _currentUser = currentUser;
         _policyFactory = policyFactory;
+        _validator = validator;
     }
 
     public async Task<Result<StockAdjustmentResponse>> HandleAsync(
         AdjustStockCommand command,
         CancellationToken cancellationToken = default)
     {
+        var validationResult = await _validator.ValidateAsync(command, cancellationToken);
+        if (!validationResult.IsValid)
+        {
+            var failure = validationResult.Errors[0];
+            return Result<StockAdjustmentResponse>.Failure(
+                string.IsNullOrWhiteSpace(failure.ErrorCode) ? "stock.adjustment" : failure.ErrorCode,
+                failure.ErrorMessage);
+        }
+
         var tenantId = _currentUser.TenantId?.Trim();
         if (string.IsNullOrEmpty(tenantId))
         {
@@ -36,12 +49,15 @@ public sealed class AdjustStockHandler : IAdjustStockHandler
                 "No se pudo determinar el comercio (tenant).");
         }
 
+        var reasonCode = StockAdjustmentReasonCodes.Normalize(command.ReasonCode);
+
         var policy = await _policyFactory.ForCurrentTenantAsync(cancellationToken);
         var validation = policy.ValidateAdjustment(
             new StockAdjustContext(
                 command.ProductId,
                 command.QuantityDelta,
-                command.Reason,
+                reasonCode,
+                command.Note,
                 command.StockLotId,
                 command.LotNumber,
                 command.ExpirationDate));
@@ -69,7 +85,8 @@ public sealed class AdjustStockHandler : IAdjustStockHandler
                 StockLotId = command.StockLotId,
                 LotNumber = command.LotNumber,
                 ExpirationDate = command.ExpirationDate,
-                Reason = command.Reason,
+                ReasonCode = reasonCode,
+                ReasonNote = command.Note,
                 CreatedByUserId = _currentUser.UserId ?? string.Empty
             };
 
@@ -90,7 +107,8 @@ public sealed class AdjustStockHandler : IAdjustStockHandler
                     StockAfter = product.Stock,
                     StockLotId = apply.AppliedStockLotId,
                     LotNumber = apply.AppliedLotNumber,
-                    QuantityDelta = command.QuantityDelta
+                    QuantityDelta = command.QuantityDelta,
+                    ReasonCode = reasonCode
                 });
         }
         catch

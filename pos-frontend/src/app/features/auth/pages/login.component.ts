@@ -34,7 +34,12 @@ import { AuthService } from '../../../core/services/auth.service';
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-slate-300 mb-2" for="password">Password</label>
+            <div class="mb-2 flex items-center justify-between gap-3">
+              <label class="block text-sm font-medium text-slate-300" for="password">Password</label>
+              <a routerLink="/forgot-password" class="text-xs text-brand-300 hover:underline">
+                ¿Olvidaste tu contraseña?
+              </a>
+            </div>
             <input
               id="password"
               type="password"

@@ -1,7 +1,13 @@
 import { computed, Injectable, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { map, Observable, tap } from 'rxjs';
-import { PlatformUser } from '../models/platform-user.model';
+import {
+  hasPlatformImpersonation,
+  hasPlatformOperations,
+  hasPlatformSuperAdmin,
+  PLATFORM_ROLES,
+  PlatformUser
+} from '../models/platform-user.model';
 
 interface LoginRequest {
   email: string;
@@ -34,6 +40,24 @@ export class PlatformAuthService {
 
   readonly currentUser = signal<PlatformUser | null>(null);
   readonly isAuthenticated = computed(() => !!this.currentUser());
+
+  /** Roles del usuario de plataforma actual. */
+  readonly roles = computed(() => this.currentUser()?.roles ?? []);
+
+  /** Mutaciones de tenants / entitlements / fiscal / usuarios tenant (policy Platform.Operations). */
+  readonly canOperate = computed(() => hasPlatformOperations(this.roles()));
+
+  /** Iniciar sesión de soporte en un tenant (policy Platform.Impersonation). */
+  readonly canImpersonate = computed(() => hasPlatformImpersonation(this.roles()));
+
+  /** CRUD de operadores (policy Platform.SuperAdmin). */
+  readonly canManageOperators = computed(() => hasPlatformSuperAdmin(this.roles()));
+
+  readonly isSuperAdmin = computed(() => hasPlatformSuperAdmin(this.roles()));
+
+  readonly isSupportReadOnly = computed(() =>
+    this.roles().includes(PLATFORM_ROLES.SupportReadOnly) && !this.canOperate()
+  );
 
   constructor(private readonly http: HttpClient) {
     this.restoreSession();

@@ -36,6 +36,7 @@ public sealed class PlatformAuthController : ControllerBase
                 "auth.platform.locked" => StatusCode(StatusCodes.Status423Locked, body),
                 "auth.platform.not_platform_user" => BadRequest(body),
                 "auth.platform.no_roles" => StatusCode(StatusCodes.Status403Forbidden, body),
+                "auth.platform.blocked" => StatusCode(StatusCodes.Status403Forbidden, body),
                 _ => Unauthorized(body),
             };
         }

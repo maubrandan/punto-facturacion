@@ -1,6 +1,6 @@
 {
-  "POS.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "C:\\proj\\punto-facturacion\\server\\POS.API",
-  "POS.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "C:\\proj\\punto-facturacion\\server\\POS.Application",
-  "POS.Domain, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "C:\\proj\\punto-facturacion\\server\\POS.Domain",
-  "POS.Infrastructure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure"
+  "POS.API, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\proj\\punto-facturacion\\server\\POS.API",
+  "POS.Application, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\proj\\punto-facturacion\\server\\POS.Application",
+  "POS.Domain, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\proj\\punto-facturacion\\server\\POS.Domain",
+  "POS.Infrastructure, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure"
 }

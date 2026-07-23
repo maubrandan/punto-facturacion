@@ -1,4 +1,5 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { firstValueFrom } from 'rxjs';
 import { Product } from '../../../core/models/product.model';
 import { ProductService } from '../../../core/services/product.service';
@@ -9,7 +10,7 @@ import { ProductService } from '../../../core/services/product.service';
 @Component({
   selector: 'app-low-stock-widget',
   standalone: true,
-  imports: [],
+  imports: [RouterLink],
   template: `
     <section class="card-dashboard mt-4 border-l-4 border-l-orange-500">
       <div class="mb-3 flex items-center justify-between gap-2">
@@ -21,14 +22,21 @@ import { ProductService } from '../../../core/services/product.service';
             Los 5 productos con menos unidades
           </p>
         </div>
-        <button
-          type="button"
-          class="btn-sm"
-          (click)="reload()"
-          [disabled]="loading()"
-        >
-          @if (loading()) { Actualizando... } @else { Actualizar }
-        </button>
+        <div class="flex shrink-0 items-center gap-2">
+          <a routerLink="/productos" class="btn-secondary-sm">Productos</a>
+          <button
+            type="button"
+            class="btn-sm"
+            (click)="reload()"
+            [disabled]="loading()"
+          >
+            @if (loading()) {
+              Actualizando...
+            } @else {
+              Actualizar
+            }
+          </button>
+        </div>
       </div>
 
       @if (error()) {

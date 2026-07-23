@@ -1,13 +1,23 @@
-import { Component, effect, inject, signal } from '@angular/core';
-import type { User } from '../core/models/user.model';
+import { Component, computed, effect, inject, signal } from '@angular/core';
+import type { TenantRole, User } from '../core/models/user.model';
+import { TENANT_ROLES } from '../core/models/user.model';
 import {
   UI_DENSITY_LEGACY_STORAGE_KEY,
   uiDensityScopedStorageKey
 } from '../core/constants/ui-density-storage';
 import { Router, RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AuthService } from '../core/services/auth.service';
+import { PlatformAuthService } from '../core/services/platform-auth.service';
 
 type UiDensity = 'normal' | 'compact' | 'ultra';
+
+interface NavItem {
+  label: string;
+  link: string;
+  exact?: boolean;
+  /** Si está vacío, visible para cualquier usuario autenticado. */
+  roles: readonly TenantRole[];
+}
 
 @Component({
   selector: 'app-main-shell',
@@ -25,7 +35,7 @@ type UiDensity = 'normal' | 'compact' | 'ultra';
           <p class="mt-1 text-xs text-slate-400">Navegacion principal</p>
 
           <nav class="mt-4 space-y-1.5">
-            @for (item of navItems; track item.link) {
+            @for (item of navItems(); track item.link) {
               <a
                 [routerLink]="item.link"
                 routerLinkActive="bg-brand-500/20 border-brand-500/40 text-slate-100"
@@ -44,17 +54,28 @@ type UiDensity = 'normal' | 'compact' | 'ultra';
               class="rounded-xl border border-amber-600/45 bg-amber-950/40 px-4 py-2.5 text-sm text-amber-100 shadow-sm shadow-amber-950/20"
               role="status"
             >
-              <p class="font-semibold tracking-wide text-amber-200">Sesión de soporte (plataforma)</p>
-              <p class="mt-1 text-xs leading-snug text-amber-100/95 sm:text-sm">
-                Motivo:
-                <span class="font-medium text-amber-50">{{ imp.reason }}</span>
-                <a
-                  routerLink="/admin"
-                  class="ml-2 inline-block text-amber-300 underline decoration-amber-500/70 underline-offset-2 hover:text-amber-100"
-                >
-                  Administración
-                </a>
-              </p>
+              <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p class="font-semibold tracking-wide text-amber-200">Sesión de soporte (plataforma)</p>
+                  <p class="mt-1 text-xs leading-snug text-amber-100/95 sm:text-sm">
+                    Motivo:
+                    <span class="font-medium text-amber-50">{{ imp.reason }}</span>
+                    @if (canAccessAdmin()) {
+                      <a
+                        routerLink="/admin"
+                        class="ml-2 inline-block text-amber-300 underline decoration-amber-500/70 underline-offset-2 hover:text-amber-100"
+                      >
+                        Administración
+                      </a>
+                    }
+                  </p>
+                </div>
+                @if (platformAuth.isAuthenticated()) {
+                  <button type="button" class="btn-secondary-sm shrink-0" (click)="returnToPlatform()">
+                    Volver a plataforma
+                  </button>
+                }
+              </div>
             </div>
           }
 
@@ -68,8 +89,12 @@ type UiDensity = 'normal' | 'compact' | 'ultra';
                 <button type="button" (click)="cycleDensity()" class="btn-sm" title="Normal » Compacto » Ultracompacto » Normal">
                   Densidad: {{ densityLabel() }}
                 </button>
-                <a routerLink="/ventas" class="btn-primary">+ Nueva venta</a>
-                <a routerLink="/compras/nueva" class="btn-secondary">+ Nueva compra</a>
+                @if (canAccessSales()) {
+                  <a routerLink="/ventas" class="btn-primary">+ Nueva venta</a>
+                }
+                @if (canAccessPurchases()) {
+                  <a routerLink="/compras/nueva" class="btn-secondary">+ Nueva compra</a>
+                }
               </div>
             </div>
 
@@ -100,27 +125,60 @@ type UiDensity = 'normal' | 'compact' | 'ultra';
 })
 export class MainShellComponent {
   readonly authService = inject(AuthService);
+  readonly platformAuth = inject(PlatformAuthService);
   private readonly router = inject(Router);
   readonly density = signal<UiDensity>('normal');
 
   readonly exactRouteMatch = { exact: true };
   readonly defaultRouteMatch = { exact: false };
-  readonly navItems: ReadonlyArray<{ label: string; link: string; exact?: boolean }> = [
-    { label: 'Dashboard', link: '/dashboard', exact: true },
-    { label: 'Administración', link: '/admin', exact: true },
-    { label: 'Ventas', link: '/ventas' },
-    { label: 'Caja', link: '/caja' },
-    { label: 'Compras', link: '/compras' },
-    { label: 'Proveedores', link: '/proveedores' },
-    { label: 'Clientes', link: '/clientes' },
-    { label: 'Inventario', link: '/inventario' }
+
+  private readonly allNavItems: readonly NavItem[] = [
+    { label: 'Dashboard', link: '/dashboard', exact: true, roles: [] },
+    { label: 'Administración', link: '/admin', exact: true, roles: [TENANT_ROLES.Admin] },
+    { label: 'Ventas', link: '/ventas', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Cashier] },
+    { label: 'Caja', link: '/caja', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Cashier] },
+    { label: 'Productos', link: '/productos', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Stock] },
+    { label: 'Compras', link: '/compras', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Stock] },
+    { label: 'Proveedores', link: '/proveedores', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Stock] },
+    { label: 'Clientes', link: '/clientes', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Cashier] },
+    { label: 'Inventario', link: '/inventario', roles: [TENANT_ROLES.Admin, TENANT_ROLES.Stock] }
   ];
+
+  readonly navItems = computed(() => {
+    const roles = this.authService.currentUser()?.roles ?? [];
+    return this.allNavItems.filter((item) => this.canAccessRoles(roles, item.roles));
+  });
+
+  readonly canAccessAdmin = computed(() =>
+    this.canAccessRoles(this.authService.currentUser()?.roles ?? [], [TENANT_ROLES.Admin])
+  );
+
+  readonly canAccessSales = computed(() =>
+    this.canAccessRoles(this.authService.currentUser()?.roles ?? [], [
+      TENANT_ROLES.Admin,
+      TENANT_ROLES.Cashier
+    ])
+  );
+
+  readonly canAccessPurchases = computed(() =>
+    this.canAccessRoles(this.authService.currentUser()?.roles ?? [], [
+      TENANT_ROLES.Admin,
+      TENANT_ROLES.Stock
+    ])
+  );
 
   constructor() {
     effect(() => {
       const user = this.authService.currentUser();
       this.loadDensityForUser(user);
     });
+  }
+
+  private canAccessRoles(userRoles: readonly TenantRole[], allowed: readonly TenantRole[]): boolean {
+    if (allowed.length === 0) {
+      return true;
+    }
+    return allowed.some((role) => userRoles.includes(role));
   }
 
   private densityStorageKey(user: User): string {
@@ -179,6 +237,11 @@ export class MainShellComponent {
 
   formatTenantId(tenantId: string): string {
     return tenantId.length > 8 ? `${tenantId.slice(0, 8)}...` : tenantId;
+  }
+
+  returnToPlatform(): void {
+    this.authService.logout();
+    void this.router.navigateByUrl('/platform/tenants');
   }
 
   logout(): void {

@@ -2,6 +2,7 @@ import { Routes } from '@angular/router';
 import { authGuard } from './core/guards/auth.guard';
 import { cashGuard } from './core/guards/cash.guard';
 import { platformAuthGuard } from './core/guards/platform-auth.guard';
+import { platformSuperAdminGuard } from './core/guards/platform-role.guard';
 import {
   tenantAdminGuard,
   tenantCashierOrAdminGuard,
@@ -48,6 +49,14 @@ export const routes: Routes = [
             (m) => m.PlatformAuditPageComponent
           )
       },
+      {
+        path: 'operators',
+        canActivate: [platformSuperAdminGuard],
+        loadComponent: () =>
+          import('./features/platform/pages/platform-operators-page.component').then(
+            (m) => m.PlatformOperatorsPageComponent
+          )
+      },
       { path: '', pathMatch: 'full', redirectTo: 'dashboard' }
     ]
   },
@@ -59,6 +68,21 @@ export const routes: Routes = [
     path: 'register',
     loadComponent: () =>
       import('./features/auth/pages/register.component').then((m) => m.RegisterComponent)
+  },
+  {
+    path: 'confirm-email',
+    loadComponent: () =>
+      import('./features/auth/pages/confirm-email.component').then((m) => m.ConfirmEmailComponent)
+  },
+  {
+    path: 'reset-password',
+    loadComponent: () =>
+      import('./features/auth/pages/reset-password.component').then((m) => m.ResetPasswordComponent)
+  },
+  {
+    path: 'forgot-password',
+    loadComponent: () =>
+      import('./features/auth/pages/forgot-password.component').then((m) => m.ForgotPasswordComponent)
   },
   {
     path: '',
@@ -89,6 +113,12 @@ export const routes: Routes = [
           import('./features/sales/pages/sale-history.component').then((m) => m.SaleHistoryComponent)
       },
       {
+        path: 'reportes',
+        canActivate: [tenantCashierOrAdminGuard],
+        loadComponent: () =>
+          import('./features/reports/pages/reports-page.component').then((m) => m.ReportsPageComponent)
+      },
+      {
         path: 'compras',
         canActivate: [tenantStockOrAdminGuard],
         loadComponent: () =>
@@ -110,6 +140,14 @@ export const routes: Routes = [
         loadComponent: () =>
           import('./features/purchases/pages/purchase-detail.component').then(
             (m) => m.PurchaseDetailComponent
+          )
+      },
+      {
+        path: 'productos',
+        canActivate: [tenantStockOrAdminGuard],
+        loadComponent: () =>
+          import('./features/products/pages/products-page.component').then(
+            (m) => m.ProductsPageComponent
           )
       },
       {

@@ -2,6 +2,7 @@ using System.Linq;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using POS.Application.Interfaces;
@@ -29,6 +30,11 @@ public static class DbInitializer
     {
         using var scope = services.CreateScope();
         var serviceProvider = scope.ServiceProvider;
+        var environment = serviceProvider.GetRequiredService<IHostEnvironment>();
+
+        // Integration tests create the schema via EnsureCreated + their own role seed.
+        if (environment.IsEnvironment("Testing"))
+            return;
 
         var logger = serviceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("DbInitializer");
         var context = serviceProvider.GetRequiredService<ApplicationDbContext>();

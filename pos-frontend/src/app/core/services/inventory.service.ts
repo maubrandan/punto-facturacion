@@ -39,7 +39,8 @@ export interface StockMovement {
   stockLotId: string | null;
   lotNumberSnapshot: string | null;
   expirationSnapshot: string | null;
-  reason: string | null;
+  reasonCode: string | null;
+  reasonNote: string | null;
   referenceId: string | null;
   createdAt: string;
 }
@@ -57,15 +58,39 @@ export interface StockAdjustmentResult {
   stockLotId: string | null;
   lotNumber: string | null;
   quantityDelta: number;
+  reasonCode: string;
 }
 
 export interface AdjustStockDto {
   productId: string;
   quantityDelta: number;
-  reason: string;
+  reasonCode: string;
+  note?: string | null;
   stockLotId?: string | null;
   lotNumber?: string | null;
   expirationDate?: string | null;
+}
+
+export interface AdjustmentReasonOption {
+  code: string;
+  label: string;
+}
+
+export interface ExpiryAlertItem {
+  stockLotId: string;
+  productId: string;
+  productName: string;
+  lotNumber: string;
+  expirationDate: string;
+  quantity: number;
+  status: 'Expired' | 'ExpiringSoon' | string;
+  daysToExpiration: number;
+}
+
+export interface ExpiryAlerts {
+  supported: boolean;
+  withinDays: number;
+  items: ExpiryAlertItem[];
 }
 
 @Injectable({ providedIn: 'root' })
@@ -83,6 +108,8 @@ export class InventoryService {
     productId?: string;
     page?: number;
     pageSize?: number;
+    from?: string;
+    to?: string;
   }): Observable<PagedStockMovements> {
     let params = new HttpParams()
       .set('page', String(filters.page ?? 1))
@@ -90,8 +117,27 @@ export class InventoryService {
     if (filters.productId) {
       params = params.set('productId', filters.productId);
     }
+    if (filters.from) {
+      params = params.set('from', filters.from);
+    }
+    if (filters.to) {
+      params = params.set('to', filters.to);
+    }
     return this.http
       .get<ApiResponse<PagedStockMovements>>(`${this.base}/movements`, { params })
+      .pipe(map((r) => this.requireSuccess(r)));
+  }
+
+  getAdjustmentReasons(): Observable<readonly AdjustmentReasonOption[]> {
+    return this.http
+      .get<ApiResponse<readonly AdjustmentReasonOption[]>>(`${this.base}/adjustment-reasons`)
+      .pipe(map((r) => this.requireSuccess(r)));
+  }
+
+  getExpiryAlerts(withinDays = 30): Observable<ExpiryAlerts> {
+    const params = new HttpParams().set('withinDays', String(withinDays));
+    return this.http
+      .get<ApiResponse<ExpiryAlerts>>(`${this.base}/expiry-alerts`, { params })
       .pipe(map((r) => this.requireSuccess(r)));
   }
 

@@ -80,7 +80,17 @@ public sealed class PlatformTenantsController : ControllerBase
         [FromBody] CreateTenantApiRequest request,
         CancellationToken cancellationToken)
     {
-        var cmd = new CreatePlatformTenantCommand(request.Name, request.ContactEmail, request.BusinessType);
+        var cmd = new CreatePlatformTenantCommand(
+            request.Name,
+            request.ContactEmail,
+            request.BusinessType,
+            request.AdminEmail,
+            request.AdminFullName,
+            request.AdminPassword,
+            request.PlanCode,
+            request.MaxProducts,
+            request.MaxTenantUsers,
+            request.SalesEnabled);
         var result = await _lifecycle.CreateAsync(cmd, cancellationToken);
         var body = ApiResponse<TenantDetailDto>.FromResult(result);
         if (!result.IsSuccess)
@@ -119,15 +129,18 @@ public sealed class PlatformTenantsController : ControllerBase
     public async Task<IActionResult> Suspend(string tenantId, CancellationToken cancellationToken)
     {
         var result = await _lifecycle.SuspendAsync(new SuspendPlatformTenantCommand(tenantId), cancellationToken);
-        var body = ApiResponse<TenantDetailDto>.FromResult(result);
-        if (!result.IsSuccess)
-        {
-            if (result.ErrorCode == "tenant.not_found")
-                return NotFound(body);
-            return BadRequest(body);
-        }
+        return ToLifecycleResponse(result);
+    }
 
-        return Ok(body);
+    [HttpPost("{tenantId}/unsuspend")]
+    [Authorize(Policy = AuthorizationPolicies.PlatformOperations)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Unsuspend(string tenantId, CancellationToken cancellationToken)
+    {
+        var result = await _lifecycle.UnsuspendAsync(new UnsuspendPlatformTenantCommand(tenantId), cancellationToken);
+        return ToLifecycleResponse(result);
     }
 
     [HttpPost("{tenantId}/close")]
@@ -138,6 +151,27 @@ public sealed class PlatformTenantsController : ControllerBase
     public async Task<IActionResult> Close(string tenantId, CancellationToken cancellationToken)
     {
         var result = await _lifecycle.CloseAsync(new ClosePlatformTenantCommand(tenantId), cancellationToken);
+        return ToLifecycleResponse(result);
+    }
+
+    [HttpPost("{tenantId}/reopen")]
+    [Authorize(Policy = AuthorizationPolicies.PlatformOperations)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<TenantDetailDto>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Reopen(
+        string tenantId,
+        [FromBody] PlatformUserActionRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _lifecycle.ReopenAsync(
+            new ReopenPlatformTenantCommand(tenantId, request.Justification),
+            cancellationToken);
+        return ToLifecycleResponse(result);
+    }
+
+    private IActionResult ToLifecycleResponse(Result<TenantDetailDto> result)
+    {
         var body = ApiResponse<TenantDetailDto>.FromResult(result);
         if (!result.IsSuccess)
         {

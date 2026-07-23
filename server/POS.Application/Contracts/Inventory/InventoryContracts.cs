@@ -35,7 +35,9 @@ public sealed class StockMovementResponse
 
     public DateOnly? ExpirationSnapshot { get; init; }
 
-    public string? Reason { get; init; }
+    public string? ReasonCode { get; init; }
+
+    public string? ReasonNote { get; init; }
 
     public Guid? ReferenceId { get; init; }
 
@@ -64,4 +66,42 @@ public sealed class StockAdjustmentResponse
     public string? LotNumber { get; init; }
 
     public decimal QuantityDelta { get; init; }
+
+    public string ReasonCode { get; init; } = string.Empty;
+}
+
+public sealed class AdjustmentReasonOptionResponse
+{
+    public string Code { get; init; } = string.Empty;
+
+    public string Label { get; init; } = string.Empty;
+}
+
+public sealed class ExpiryAlertItemResponse
+{
+    public Guid StockLotId { get; init; }
+
+    public Guid ProductId { get; init; }
+
+    public string ProductName { get; init; } = string.Empty;
+
+    public string LotNumber { get; init; } = string.Empty;
+
+    public DateOnly ExpirationDate { get; init; }
+
+    public decimal Quantity { get; init; }
+
+    public string Status { get; init; } = string.Empty;
+
+    public int DaysToExpiration { get; init; }
+}
+
+public sealed class ExpiryAlertsResponse
+{
+    /// <summary>False para rubros sin lotes/vencimiento (Ferretería, Kiosco).</summary>
+    public bool Supported { get; init; }
+
+    public int WithinDays { get; init; }
+
+    public IReadOnlyList<ExpiryAlertItemResponse> Items { get; init; } = Array.Empty<ExpiryAlertItemResponse>();
 }

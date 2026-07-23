@@ -31,8 +31,9 @@ public sealed class HardwareStockPolicy : IStockPolicy
         if (!absCheck.IsSuccess)
             return absCheck;
 
-        if (string.IsNullOrWhiteSpace(ctx.Reason))
-            return Result<object?>.Failure("stock.adjustment", "El motivo del ajuste es obligatorio.");
+        var reason = StockQuantityRules.RequireKnownAdjustmentReason(ctx.ReasonCode);
+        if (!reason.IsSuccess)
+            return reason;
 
         return Result<object?>.Ok(null);
     }
@@ -53,7 +54,8 @@ public sealed class HardwareStockPolicy : IStockPolicy
         {
             Product = ctx.Product,
             Quantity = Math.Abs(delta),
-            Reason = ctx.Reason,
+            ReasonCode = ctx.ReasonCode,
+            ReasonNote = ctx.ReasonNote,
             ReferenceId = ctx.ReferenceId,
             CreatedByUserId = ctx.CreatedByUserId
         };
@@ -80,7 +82,8 @@ public sealed class HardwareStockPolicy : IStockPolicy
             null,
             null,
             null,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
         return Result<object?>.Ok(null);
@@ -104,7 +107,8 @@ public sealed class HardwareStockPolicy : IStockPolicy
             null,
             null,
             null,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
         return Result<object?>.Ok(null);

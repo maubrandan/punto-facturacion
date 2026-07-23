@@ -1,4 +1,4 @@
-using System.Net;
+﻿using System.Net;
 using System.Net.Http.Json;
 using Microsoft.Extensions.DependencyInjection;
 using POS.Domain.Entities;
@@ -71,7 +71,32 @@ public sealed class StockPolicyIntegrationTests : IClassFixture<TestWebApplicati
     }
 
     [Fact]
-    public async Task Farmacia_SaleWithoutLot_ReturnsBadRequest()
+    public async Task Ferreteria_SaleWithMoreThanThreeDecimals_ReturnsBadRequest()
+    {
+        var tenantId = $"t-ferr-scale-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Ferreteria);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(client, "SKU-F-SCALE", stock: 10);
+
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 1.2345m } },
+                payments = new[] { new { method = 0, amount = 121m } }
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<object>>();
+        Assert.Equal("stock.quantity_scale", body!.Error?.Code);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithoutLot_AutoAllocatesFefoLot()
     {
         var tenantId = $"t-farm-{Guid.NewGuid():N}";
         await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
@@ -87,6 +112,274 @@ public sealed class StockPolicyIntegrationTests : IClassFixture<TestWebApplicati
             lotNumber: "L1",
             expirationDate: "2099-01-01");
 
+        var lotsRes = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsBody = await lotsRes.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        var expectedLotId = lotsBody!.Data![0].Id;
+
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 1 } },
+                payments = new[] { new { method = 0, amount = 121m } }
+            });
+
+        Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<SaleData>>();
+        Assert.NotNull(body);
+        Assert.True(body!.Success);
+        Assert.Equal(expectedLotId, body.Data!.Lines[0].StockLotId);
+
+        var lotsAfter = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsAfterBody = await lotsAfter.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.Equal(4m, lotsAfterBody!.Data!.Single(l => l.Id == expectedLotId).Quantity);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithoutLot_PrefersEarliestExpiringLot()
+    {
+        var tenantId = $"t-farm-fefo-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(
+            client,
+            "SKU-PH-FEFO",
+            stock: 2,
+            lotNumber: "LATE",
+            expirationDate: "2099-12-01");
+
+        var adjustRes = await client.PostAsJsonAsync(
+            "/api/inventory/adjustments",
+            new
+            {
+                productId,
+                quantityDelta = 3,
+                reasonCode = "CountCorrection",
+                lotNumber = "EARLY",
+                expirationDate = "2099-06-01"
+            });
+        Assert.Equal(HttpStatusCode.OK, adjustRes.StatusCode);
+
+        var lotsRes = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsBody = await lotsRes.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.Equal(2, lotsBody!.Data!.Count);
+        var earlyLot = lotsBody.Data.OrderBy(l => l.ExpirationDate).First();
+        Assert.Equal("EARLY", earlyLot.LotNumber);
+
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 2 } },
+                payments = new[] { new { method = 0, amount = 242m } }
+            });
+
+        Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<SaleData>>();
+        Assert.Equal(earlyLot.Id, body!.Data!.Lines[0].StockLotId);
+
+        var lotsAfter = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsAfterBody = await lotsAfter.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        var afterLots = lotsAfterBody!.Data!;
+        Assert.Equal(1m, afterLots.Single(l => l.Id == earlyLot.Id).Quantity);
+        Assert.Equal(2m, afterLots.Single(l => l.LotNumber == "LATE").Quantity);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithoutLot_SplitsAcrossLotsInFefoOrder()
+    {
+        var tenantId = $"t-farm-split-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(
+            client,
+            "SKU-PH-SPLIT",
+            stock: 1,
+            lotNumber: "EARLY",
+            expirationDate: "2099-06-01");
+
+        var adjustRes = await client.PostAsJsonAsync(
+            "/api/inventory/adjustments",
+            new
+            {
+                productId,
+                quantityDelta = 10,
+                reasonCode = "CountCorrection",
+                lotNumber = "LATE",
+                expirationDate = "2099-12-01"
+            });
+        Assert.Equal(HttpStatusCode.OK, adjustRes.StatusCode);
+
+        var lotsRes = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsBody = await lotsRes.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.NotNull(lotsBody?.Data);
+        var earlyLot = lotsBody!.Data!.Single(l => l.LotNumber == "EARLY");
+        var lateLot = lotsBody.Data.Single(l => l.LotNumber == "LATE");
+
+        // 1 del EARLY + 1 del LATE (FEFO), total 2.
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 2 } },
+                payments = new[] { new { method = 0, amount = 242m } }
+            });
+
+        Assert.Equal(HttpStatusCode.Created, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<SaleData>>();
+        Assert.True(body!.Success);
+        Assert.NotNull(body.Data);
+        Assert.Equal(2, body.Data!.Lines.Count);
+        Assert.Equal(earlyLot.Id, body.Data.Lines[0].StockLotId);
+        Assert.Equal("EARLY", body.Data.Lines[0].LotNumber);
+        Assert.Equal(1m, body.Data.Lines[0].Quantity);
+        Assert.Equal(lateLot.Id, body.Data.Lines[1].StockLotId);
+        Assert.Equal("LATE", body.Data.Lines[1].LotNumber);
+        Assert.Equal(1m, body.Data.Lines[1].Quantity);
+
+        var detailRes = await client.GetAsync($"/api/sales/{body.Data.Id}");
+        Assert.Equal(HttpStatusCode.OK, detailRes.StatusCode);
+        var detailBody = await detailRes.Content.ReadFromJsonAsync<ApiResponse<SaleDetailData>>();
+        Assert.True(detailBody!.Success);
+        Assert.NotNull(detailBody.Data);
+        Assert.Equal(2, detailBody.Data!.Lines.Count);
+        Assert.Equal(earlyLot.Id, detailBody.Data.Lines[0].StockLotId);
+        Assert.Equal("EARLY", detailBody.Data.Lines[0].LotNumber);
+        Assert.Equal(lateLot.Id, detailBody.Data.Lines[1].StockLotId);
+        Assert.Equal("LATE", detailBody.Data.Lines[1].LotNumber);
+
+        var lotsAfter = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsAfterBody = await lotsAfter.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.NotNull(lotsAfterBody?.Data);
+        Assert.Equal(0m, lotsAfterBody!.Data!.Single(l => l.Id == earlyLot.Id).Quantity);
+        Assert.Equal(9m, lotsAfterBody.Data.Single(l => l.Id == lateLot.Id).Quantity);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithoutLot_WhenTotalFefoQtyInsufficient_ReturnsBadRequest()
+    {
+        var tenantId = $"t-farm-short-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(
+            client,
+            "SKU-PH-SHORT",
+            stock: 1,
+            lotNumber: "EARLY",
+            expirationDate: "2099-06-01");
+
+        var adjustRes = await client.PostAsJsonAsync(
+            "/api/inventory/adjustments",
+            new
+            {
+                productId,
+                quantityDelta = 1,
+                reasonCode = "CountCorrection",
+                lotNumber = "LATE",
+                expirationDate = "2099-12-01"
+            });
+        Assert.Equal(HttpStatusCode.OK, adjustRes.StatusCode);
+
+        // Total FEFO = 2; pedir 3 debe fallar.
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 3 } },
+                payments = new[] { new { method = 0, amount = 363m } }
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<object>>();
+        Assert.Equal("stock.insufficient", body!.Error?.Code);
+        Assert.Contains("FEFO", body.Error!.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Disponible: 2", body.Error.Message!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithExplicitLot_DoesNotSplitToOtherLots()
+    {
+        var tenantId = $"t-farm-explicit-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(
+            client,
+            "SKU-PH-EXPL",
+            stock: 1,
+            lotNumber: "EARLY",
+            expirationDate: "2099-06-01");
+
+        var adjustRes = await client.PostAsJsonAsync(
+            "/api/inventory/adjustments",
+            new
+            {
+                productId,
+                quantityDelta = 10,
+                reasonCode = "CountCorrection",
+                lotNumber = "LATE",
+                expirationDate = "2099-12-01"
+            });
+        Assert.Equal(HttpStatusCode.OK, adjustRes.StatusCode);
+
+        var lotsRes = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsBody = await lotsRes.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.NotNull(lotsBody?.Data);
+        var earlyLot = lotsBody!.Data!.Single(l => l.LotNumber == "EARLY");
+
+        var saleRes = await client.PostAsJsonAsync(
+            "/api/sales",
+            new
+            {
+                lines = new[] { new { productId, quantity = 2, stockLotId = earlyLot.Id } },
+                payments = new[] { new { method = 0, amount = 242m } }
+            });
+
+        Assert.Equal(HttpStatusCode.BadRequest, saleRes.StatusCode);
+        var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<object>>();
+        Assert.Equal("stock.insufficient", body!.Error?.Code);
+        Assert.DoesNotContain("FEFO", body.Error!.Message!, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("EARLY", body.Error.Message!, StringComparison.Ordinal);
+
+        var lotsAfter = await client.GetAsync($"/api/inventory/products/{productId}/lots");
+        var lotsAfterBody = await lotsAfter.Content.ReadFromJsonAsync<ApiResponse<List<LotData>>>();
+        Assert.NotNull(lotsAfterBody?.Data);
+        Assert.Equal(1m, lotsAfterBody!.Data!.Single(l => l.LotNumber == "EARLY").Quantity);
+        Assert.Equal(10m, lotsAfterBody.Data.Single(l => l.LotNumber == "LATE").Quantity);
+    }
+
+    [Fact]
+    public async Task Farmacia_SaleWithoutLot_WhenOnlyExpiredLots_ReturnsBadRequest()
+    {
+        var tenantId = $"t-farm-exp-{Guid.NewGuid():N}";
+        await EnsureTenantAsync(tenantId, BusinessTypeNames.Farmacia);
+
+        using var client = _factory.CreateClient();
+        client.DefaultRequestHeaders.Add("X-Test-TenantId", tenantId);
+
+        await OpenCashAsync(client);
+        var productId = await CreateProductAsync(
+            client,
+            "SKU-PH-ONLY-EXP",
+            stock: 3,
+            lotNumber: "EXPIRED",
+            expirationDate: "2020-01-01");
+
         var saleRes = await client.PostAsJsonAsync(
             "/api/sales",
             new
@@ -97,7 +390,7 @@ public sealed class StockPolicyIntegrationTests : IClassFixture<TestWebApplicati
 
         Assert.Equal(HttpStatusCode.BadRequest, saleRes.StatusCode);
         var body = await saleRes.Content.ReadFromJsonAsync<ApiResponse<object>>();
-        Assert.Equal("stock.lot_required", body!.Error?.Code);
+        Assert.Equal("stock.no_fefo_lot", body!.Error?.Code);
     }
 
     [Fact]
@@ -142,7 +435,7 @@ public sealed class StockPolicyIntegrationTests : IClassFixture<TestWebApplicati
             {
                 productId,
                 quantityDelta = 2,
-                reason = "Reposición test",
+                reasonCode = "CountCorrection",
                 lotNumber = "L-NEW",
                 expirationDate = "2099-06-01"
             });
@@ -226,17 +519,44 @@ public sealed class StockPolicyIntegrationTests : IClassFixture<TestWebApplicati
 
     private sealed class SaleData
     {
+        public Guid Id { get; set; }
+
         public List<SaleLineData> Lines { get; set; } = [];
     }
 
     private sealed class SaleLineData
     {
         public decimal Quantity { get; set; }
+
+        public Guid? StockLotId { get; set; }
+
+        public string? LotNumber { get; set; }
+    }
+
+    private sealed class SaleDetailData
+    {
+        public List<SaleDetailLineData> Lines { get; set; } = [];
+    }
+
+    private sealed class SaleDetailLineData
+    {
+        public Guid? StockLotId { get; set; }
+
+        public string? LotNumber { get; set; }
+
+        public decimal Quantity { get; set; }
     }
 
     private sealed class LotData
     {
         public Guid Id { get; set; }
+
+        public string LotNumber { get; set; } = string.Empty;
+
+        public DateOnly ExpirationDate { get; set; }
+
+        public decimal Quantity { get; set; }
+
         public bool IsExpired { get; set; }
     }
 

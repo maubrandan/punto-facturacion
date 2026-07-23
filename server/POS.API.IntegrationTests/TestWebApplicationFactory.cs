@@ -11,6 +11,7 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using POS.Application.Interfaces;
 using POS.Application.Platform;
 using POS.Domain.Platform;
 using POS.Domain.Tenant;
@@ -26,6 +27,13 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
 {
     private const string TestAuthScheme = "TestAuth";
     private readonly string _testDbName = $"PosFacturacion_IntegrationTests_{Guid.NewGuid():N}";
+    private readonly RecordingEmailSender _emailSender = new();
+    private readonly string _billingProvider;
+
+    public TestWebApplicationFactory(string billingProvider = "Manual") =>
+        _billingProvider = billingProvider;
+
+    public RecordingEmailSender EmailSender => _emailSender;
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
@@ -41,7 +49,13 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
                     new KeyValuePair<string, string?>("Jwt:Issuer", "POS"),
                     new KeyValuePair<string, string?>("Jwt:Audience", "pos-clients"),
                     new KeyValuePair<string, string?>("Jwt:SigningKey", "TESTING-SIGNING-KEY-MINIMUM-32-CHARS!!"),
-                    new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", BuildConnectionString())
+                    new KeyValuePair<string, string?>("ConnectionStrings:DefaultConnection", BuildConnectionString()),
+                    new KeyValuePair<string, string?>("Email:Provider", "Logging"),
+                    new KeyValuePair<string, string?>("Email:FromAddress", "noreply@test.local"),
+                    new KeyValuePair<string, string?>("Email:PublicAppBaseUrl", "http://localhost:4200"),
+                    new KeyValuePair<string, string?>("Billing:Provider", _billingProvider),
+                    new KeyValuePair<string, string?>("Billing:EnableRenewalJob", "false"),
+                    new KeyValuePair<string, string?>("Billing:EnableDunningJob", "false")
                 ]);
             });
 
@@ -51,6 +65,10 @@ public sealed class TestWebApplicationFactory : WebApplicationFactory<Program>, 
                 services.RemoveAll(typeof(DbContextOptions<ApplicationDbContext>));
                 services.RemoveAll(typeof(ApplicationDbContext));
                 services.RemoveAll(typeof(IDbContextOptionsConfiguration<ApplicationDbContext>));
+                services.RemoveAll(typeof(IEmailSender));
+
+                services.AddSingleton<IEmailSender>(_emailSender);
+                services.AddSingleton(_emailSender);
 
                 services.AddDbContext<ApplicationDbContext>(
                     options => options.UseSqlServer(BuildConnectionString()));

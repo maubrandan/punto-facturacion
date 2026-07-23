@@ -5,11 +5,16 @@ using Microsoft.Extensions.DependencyInjection;
 using POS.Application.Interfaces;
 using POS.Application.Contracts.Platform;
 using POS.Application.Interfaces.Platform;
+using POS.Application.Interfaces.Billing;
+using POS.Application.Billing;
+using POS.Application.Billing.Validation;
 using POS.Application.Platform;
 using POS.Application.Platform.Validation;
 using POS.Application.Fiscal;
 using POS.Application.Fiscal.Validation;
+using POS.Infrastructure.Billing;
 using POS.Infrastructure.Configuration;
+using POS.Infrastructure.Email;
 using POS.Infrastructure.Entitlements;
 using POS.Infrastructure.Platform;
 using POS.Infrastructure.Cash;
@@ -24,6 +29,7 @@ using POS.Infrastructure.TenantUsers;
 using POS.Application.TenantUsers;
 using POS.Application.TenantUsers.Validation;
 using POS.Application.Inventory;
+using POS.Application.Inventory.Validation;
 
 namespace POS.Infrastructure;
 
@@ -37,6 +43,9 @@ public static class DependencyInjection
         services.Configure<AdminSeedOptions>(configuration.GetSection(AdminSeedOptions.SectionName));
         services.Configure<PlatformAdminSeedOptions>(configuration.GetSection(PlatformAdminSeedOptions.SectionName));
         services.Configure<ArcaOptions>(configuration.GetSection(ArcaOptions.SectionName));
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<BillingOptions>(configuration.GetSection(BillingOptions.SectionName));
+        services.AddScoped<IEmailSender>(EmailSenderRegistration.Create);
 
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentUserTenantContext, CurrentUserTenantContext>();
@@ -62,6 +71,7 @@ public static class DependencyInjection
         services.AddScoped<IStockPolicyFactory, StockPolicyFactory>();
         services.AddScoped<IAdjustStockHandler, AdjustStockHandler>();
         services.AddScoped<IInventoryQueryService, InventoryQueryService>();
+        services.AddScoped<IValidator<AdjustStockCommand>, AdjustStockCommandValidator>();
 
         services.AddScoped<IValidator<CreateTenantUserCommand>, CreateTenantUserCommandValidator>();
         services.AddScoped<IValidator<UpdateTenantUserCommand>, UpdateTenantUserCommandValidator>();
@@ -90,6 +100,11 @@ public static class DependencyInjection
 
         services.AddScoped<IValidator<ProvisionPlatformUserCommand>, ProvisionPlatformUserCommandValidator>();
         services.AddScoped<IProvisionPlatformUserHandler, ProvisionPlatformUserHandler>();
+        services.AddScoped<IValidator<UpdatePlatformOperatorCommand>, UpdatePlatformOperatorCommandValidator>();
+        services.AddScoped<IValidator<BlockPlatformOperatorCommand>, BlockPlatformOperatorCommandValidator>();
+        services.AddScoped<IValidator<UnblockPlatformOperatorCommand>, UnblockPlatformOperatorCommandValidator>();
+        services.AddScoped<IPlatformOperatorQuery, PlatformOperatorQuery>();
+        services.AddScoped<IPlatformOperatorAdminService, PlatformOperatorAdminService>();
         services.AddScoped<IPlatformAuditService, EfPlatformAuditService>();
         services.AddScoped<IPlatformAuditQueryService, PlatformAuditQueryService>();
         services.AddScoped<IPlatformMetricsOverviewQuery, PlatformMetricsOverviewQuery>();
@@ -98,12 +113,31 @@ public static class DependencyInjection
         services.AddScoped<IValidator<CreatePlatformTenantCommand>, CreatePlatformTenantCommandValidator>();
         services.AddScoped<IValidator<UpdatePlatformTenantCommand>, UpdatePlatformTenantCommandValidator>();
         services.AddScoped<IValidator<SuspendPlatformTenantCommand>, SuspendPlatformTenantCommandValidator>();
+        services.AddScoped<IValidator<UnsuspendPlatformTenantCommand>, UnsuspendPlatformTenantCommandValidator>();
         services.AddScoped<IValidator<ClosePlatformTenantCommand>, ClosePlatformTenantCommandValidator>();
+        services.AddScoped<IValidator<ReopenPlatformTenantCommand>, ReopenPlatformTenantCommandValidator>();
         services.AddScoped<IPlatformTenantLifecycleService, PlatformTenantLifecycleService>();
 
         services.AddScoped<ITenantEntitlementGuard, TenantEntitlementGuard>();
         services.AddScoped<IValidator<SetTenantEntitlementsCommand>, SetTenantEntitlementsCommandValidator>();
         services.AddScoped<IPlatformTenantEntitlementsService, PlatformTenantEntitlementsService>();
+        services.AddScoped<PlatformTenantSubscriptionService>();
+        services.AddScoped<IPlatformTenantSubscriptionService>(sp =>
+            sp.GetRequiredService<PlatformTenantSubscriptionService>());
+        services.AddScoped<IValidator<UpdateTenantSubscriptionCommand>, UpdateTenantSubscriptionCommandValidator>();
+        services.AddScoped<ITenantSubscriptionQuery, TenantSubscriptionQuery>();
+        services.AddScoped<IValidator<SelfServeUpgradeSubscriptionCommand>, SelfServeUpgradeSubscriptionCommandValidator>();
+        services.AddScoped<ISelfServeUpgradeSubscriptionHandler, SelfServeUpgradeSubscriptionHandler>();
+        services.AddScoped<ITenantSubscriptionInvoiceQuery, TenantSubscriptionInvoiceQuery>();
+        services.AddScoped<ISubscriptionInvoiceFactory, SubscriptionInvoiceFactory>();
+        services.AddScoped<ISubscriptionBillingJobs, SubscriptionBillingJobs>();
+        services.AddScoped<ManualBillingGateway>();
+        services.AddScoped<StripeBillingGateway>();
+        services.AddScoped<MercadoPagoBillingGateway>();
+        services.AddScoped<IBillingGatewayResolver, BillingGatewayResolver>();
+        services.AddScoped<IBillingWebhookProcessor, BillingWebhookProcessor>();
+        services.AddHostedService<BillingRenewalWorker>();
+        services.AddHostedService<BillingDunningWorker>();
         services.AddScoped<IValidator<UpsertPlatformTenantFiscalProfileCommand>, UpsertPlatformTenantFiscalProfileCommandValidator>();
         services.AddScoped<IPlatformTenantFiscalProfileService, PlatformTenantFiscalProfileService>();
 

@@ -35,8 +35,9 @@ public sealed class KioskStockPolicy : IStockPolicy
                 "La cantidad debe ser un número entero para este rubro.");
         }
 
-        if (string.IsNullOrWhiteSpace(ctx.Reason))
-            return Result<object?>.Failure("stock.adjustment", "El motivo del ajuste es obligatorio.");
+        var reason = StockQuantityRules.RequireKnownAdjustmentReason(ctx.ReasonCode);
+        if (!reason.IsSuccess)
+            return reason;
 
         return Result<object?>.Ok(null);
     }
@@ -57,7 +58,8 @@ public sealed class KioskStockPolicy : IStockPolicy
         {
             Product = ctx.Product,
             Quantity = Math.Abs(delta),
-            Reason = ctx.Reason,
+            ReasonCode = ctx.ReasonCode,
+            ReasonNote = ctx.ReasonNote,
             ReferenceId = ctx.ReferenceId,
             CreatedByUserId = ctx.CreatedByUserId
         };
@@ -84,7 +86,8 @@ public sealed class KioskStockPolicy : IStockPolicy
             null,
             null,
             null,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
         return Result<object?>.Ok(null);
@@ -108,7 +111,8 @@ public sealed class KioskStockPolicy : IStockPolicy
             null,
             null,
             null,
-            ctx.Reason,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
             ctx.ReferenceId,
             ctx.CreatedByUserId);
         return Result<object?>.Ok(null);

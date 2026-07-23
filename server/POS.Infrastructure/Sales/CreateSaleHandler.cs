@@ -214,42 +214,66 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                     return Result<SaleResponse>.Failure(stockResult.ErrorCode!, stockResult.Error!);
                 }
 
-                var lineNet = decimal.Round(product.NetPrice * quantity, 2, MidpointRounding.AwayFromZero);
-                var lineTax = decimal.Round(lineNet * (product.TaxRate / 100m), 2, MidpointRounding.AwayFromZero);
-                totalNet += lineNet;
-                totalTax += lineTax;
                 var extJson = string.IsNullOrWhiteSpace(product.ExtendedDataJson) ? "{}" : product.ExtendedDataJson;
 
-                var detailId = Guid.NewGuid();
-                sale.Details.Add(
-                    new SaleDetail
-                    {
-                        Id = detailId,
-                        SaleId = saleId,
-                        ProductId = product.Id,
-                        ProductName = product.Name,
-                        ProductExtendedDataJson = extJson,
-                        Quantity = quantity,
-                        StockLotId = apply.AppliedStockLotId ?? stockLotId,
-                        LineNetSubtotal = lineNet,
-                        LineTaxAmount = lineTax,
-                        UnitNetPrice = product.NetPrice,
-                        TaxRate = product.TaxRate
-                    });
+                // Farmacia FEFO multi-lote: una SaleDetail/línea por asignación.
+                // Otros rubros (o un solo lote): una sola línea con la cantidad pedida.
+                var detailSlices = apply.AppliedAllocations.Count > 0
+                    ? apply.AppliedAllocations
+                        .Select(a => (Qty: a.Quantity, LotId: (Guid?)a.StockLotId, LotNumber: (string?)a.LotNumber))
+                        .ToList()
+                    : [(
+                        Qty: quantity,
+                        LotId: apply.AppliedStockLotId ?? stockLotId,
+                        LotNumber: apply.AppliedLotNumber
+                    )];
 
-                lineResponses.Add(
-                    new SaleLineResponse
-                    {
-                        Id = detailId,
-                        ProductId = product.Id,
-                        ProductName = product.Name,
-                        ProductExtendedDataJson = extJson,
-                        Quantity = quantity,
-                        LineNetSubtotal = lineNet,
-                        LineTaxAmount = lineTax,
-                        UnitNetPrice = product.NetPrice,
-                        TaxRate = product.TaxRate
-                    });
+                foreach (var (sliceQty, sliceLotId, sliceLotNumber) in detailSlices)
+                {
+                    var lineNet = decimal.Round(
+                        product.NetPrice * sliceQty,
+                        2,
+                        MidpointRounding.AwayFromZero);
+                    var lineTax = decimal.Round(
+                        lineNet * (product.TaxRate / 100m),
+                        2,
+                        MidpointRounding.AwayFromZero);
+                    totalNet += lineNet;
+                    totalTax += lineTax;
+
+                    var detailId = Guid.NewGuid();
+                    sale.Details.Add(
+                        new SaleDetail
+                        {
+                            Id = detailId,
+                            SaleId = saleId,
+                            ProductId = product.Id,
+                            ProductName = product.Name,
+                            ProductExtendedDataJson = extJson,
+                            Quantity = sliceQty,
+                            StockLotId = sliceLotId,
+                            LineNetSubtotal = lineNet,
+                            LineTaxAmount = lineTax,
+                            UnitNetPrice = product.NetPrice,
+                            TaxRate = product.TaxRate
+                        });
+
+                    lineResponses.Add(
+                        new SaleLineResponse
+                        {
+                            Id = detailId,
+                            ProductId = product.Id,
+                            ProductName = product.Name,
+                            ProductExtendedDataJson = extJson,
+                            Quantity = sliceQty,
+                            LineNetSubtotal = lineNet,
+                            LineTaxAmount = lineTax,
+                            UnitNetPrice = product.NetPrice,
+                            TaxRate = product.TaxRate,
+                            StockLotId = sliceLotId,
+                            LotNumber = sliceLotNumber
+                        });
+                }
             }
 
             sale.TotalNet = totalNet;

@@ -3,24 +3,82 @@ import { Injectable } from '@angular/core';
 import { catchError, map, Observable, of } from 'rxjs';
 import type { TenantFiscalProfileView, UpsertTenantFiscalProfileDto } from '../models/fiscal.model';
 
+export type PlatformTenantStatus = 'Active' | 'Suspended' | 'Closed';
+
 export interface PlatformTenantSummary {
   id: string;
   name: string;
   contactEmail: string | null;
-  status: 'Active' | 'Suspended' | 'Closed';
+  status: PlatformTenantStatus;
   createdAt: string;
 }
 
 export interface PlatformTenantDetail extends PlatformTenantSummary {
+  businessType: string;
   updatedAt: string | null;
   suspendedAt: string | null;
   closedAt: string | null;
+}
+
+export type TenantPlanCode = 'Starter' | 'Pro' | 'Unlimited';
+
+export interface CreatePlatformTenantPayload {
+  name: string;
+  contactEmail?: string | null;
+  businessType: string;
+  adminEmail: string;
+  adminFullName?: string | null;
+  adminPassword: string;
+  planCode?: TenantPlanCode | string | null;
+  maxProducts?: number | null;
+  maxTenantUsers?: number | null;
+  salesEnabled?: boolean | null;
+}
+
+export interface UpdatePlatformTenantPayload {
+  name: string;
+  contactEmail?: string | null;
 }
 
 export interface TenantEntitlements {
   maxProducts: number | null;
   maxTenantUsers: number | null;
   salesEnabled: boolean;
+  /** Preset coincidente (Starter/Pro/Unlimited) o null si es custom. */
+  matchedPlanCode?: string | null;
+}
+
+/** Valores numéricos del enum backend (System.Text.Json por defecto). */
+export type SubscriptionStatusCode = 0 | 1 | 2 | 3;
+export type BillingCycleCode = 0 | 1;
+
+export interface TenantSubscription {
+  tenantId: string;
+  planCode: TenantPlanCode | string;
+  matchedPlanCode?: string | null;
+  entitlementsMatchPlan: boolean;
+  status: SubscriptionStatusCode | number;
+  billingCycle: BillingCycleCode | number;
+  provider: number;
+  currentPeriodStartUtc: string;
+  currentPeriodEndUtc: string;
+  trialEndsAtUtc: string | null;
+  cancelAtPeriodEnd: boolean;
+  canceledAtUtc: string | null;
+  notes: string | null;
+  updatedAtUtc: string;
+}
+
+export interface UpdateTenantSubscriptionPayload {
+  planCode: TenantPlanCode | string;
+  status: SubscriptionStatusCode | number;
+  billingCycle: BillingCycleCode | number;
+  currentPeriodStartUtc?: string | null;
+  currentPeriodEndUtc?: string | null;
+  trialEndsAtUtc?: string | null;
+  cancelAtPeriodEnd?: boolean;
+  notes?: string | null;
+  justification: string;
 }
 
 export interface PlatformTenantUser {
@@ -90,6 +148,40 @@ export interface ImpersonationSessionResponse {
   tenantId: string;
 }
 
+export type PlatformOperatorRole =
+  | 'Platform.SuperAdmin'
+  | 'Platform.Operations'
+  | 'Platform.Support'
+  | 'Platform.SupportReadOnly';
+
+export interface PlatformOperator {
+  id: string;
+  email: string;
+  fullName: string;
+  platformRole: PlatformOperatorRole | string;
+  emailConfirmed: boolean;
+  blockedByPlatform: boolean;
+}
+
+export interface PlatformOperatorPage {
+  items: PlatformOperator[];
+  totalCount: number;
+  page: number;
+  pageSize: number;
+}
+
+export interface ProvisionPlatformOperatorPayload {
+  email: string;
+  password: string;
+  fullName: string;
+  platformRole: PlatformOperatorRole | string;
+}
+
+export interface UpdatePlatformOperatorPayload {
+  fullName: string;
+  platformRole: PlatformOperatorRole | string;
+}
+
 interface ApiResponse<T> {
   success: boolean;
   data: T | null;
@@ -102,10 +194,18 @@ export class PlatformConsoleService {
 
   constructor(private readonly http: HttpClient) {}
 
-  getTenants(page = 1, pageSize = 20, nameContains?: string): Observable<PlatformTenantPage> {
+  getTenants(
+    page = 1,
+    pageSize = 20,
+    nameContains?: string,
+    status?: PlatformTenantStatus | ''
+  ): Observable<PlatformTenantPage> {
     let params = new HttpParams().set('page', page).set('pageSize', pageSize);
     if (nameContains?.trim()) {
       params = params.set('nameContains', nameContains.trim());
+    }
+    if (status) {
+      params = params.set('status', status);
     }
     return this.http
       .get<ApiResponse<PlatformTenantPage>>(`${this.apiBase}/tenants`, { params })
@@ -118,16 +218,40 @@ export class PlatformConsoleService {
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudo cargar el tenant.')));
   }
 
+  createTenant(payload: CreatePlatformTenantPayload): Observable<PlatformTenantDetail> {
+    return this.http
+      .post<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo crear el tenant.')));
+  }
+
+  updateTenant(tenantId: string, payload: UpdatePlatformTenantPayload): Observable<PlatformTenantDetail> {
+    return this.http
+      .patch<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants/${tenantId}`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo actualizar el tenant.')));
+  }
+
   suspendTenant(tenantId: string): Observable<PlatformTenantDetail> {
     return this.http
       .post<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants/${tenantId}/suspend`, {})
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudo suspender el tenant.')));
   }
 
+  unsuspendTenant(tenantId: string): Observable<PlatformTenantDetail> {
+    return this.http
+      .post<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants/${tenantId}/unsuspend`, {})
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo reactivar el tenant.')));
+  }
+
   closeTenant(tenantId: string): Observable<PlatformTenantDetail> {
     return this.http
       .post<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants/${tenantId}/close`, {})
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudo cerrar el tenant.')));
+  }
+
+  reopenTenant(tenantId: string, justification: string): Observable<PlatformTenantDetail> {
+    return this.http
+      .post<ApiResponse<PlatformTenantDetail>>(`${this.apiBase}/tenants/${tenantId}/reopen`, { justification })
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo reabrir el tenant.')));
   }
 
   getEntitlements(tenantId: string): Observable<TenantEntitlements> {
@@ -143,6 +267,21 @@ export class PlatformConsoleService {
     return this.http
       .put<ApiResponse<TenantEntitlements>>(`${this.apiBase}/tenants/${tenantId}/entitlements`, payload)
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudieron actualizar entitlements.')));
+  }
+
+  getSubscription(tenantId: string): Observable<TenantSubscription> {
+    return this.http
+      .get<ApiResponse<TenantSubscription>>(`${this.apiBase}/tenants/${tenantId}/subscription`)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo cargar la suscripción.')));
+  }
+
+  updateSubscription(
+    tenantId: string,
+    payload: UpdateTenantSubscriptionPayload
+  ): Observable<TenantSubscription> {
+    return this.http
+      .put<ApiResponse<TenantSubscription>>(`${this.apiBase}/tenants/${tenantId}/subscription`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo actualizar la suscripción.')));
   }
 
   getFiscalProfile(tenantId: string): Observable<TenantFiscalProfileView | null> {
@@ -230,6 +369,48 @@ export class PlatformConsoleService {
     return this.http
       .get<ApiResponse<PlatformMetricsOverview>>(`${this.apiBase}/metrics/overview`)
       .pipe(map((r) => this.requireSuccessData(r, 'No se pudieron cargar métricas de plataforma.')));
+  }
+
+  getOperators(
+    page = 1,
+    pageSize = 20,
+    emailContains?: string,
+    role?: string
+  ): Observable<PlatformOperatorPage> {
+    let params = new HttpParams().set('page', page).set('pageSize', pageSize);
+    if (emailContains?.trim()) {
+      params = params.set('emailContains', emailContains.trim());
+    }
+    if (role?.trim()) {
+      params = params.set('role', role.trim());
+    }
+    return this.http
+      .get<ApiResponse<PlatformOperatorPage>>(`${this.apiBase}/operators`, { params })
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudieron listar operadores.')));
+  }
+
+  provisionOperator(payload: ProvisionPlatformOperatorPayload): Observable<PlatformOperator> {
+    return this.http
+      .post<ApiResponse<PlatformOperator>>(`${this.apiBase}/operators`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo aprovisionar el operador.')));
+  }
+
+  updateOperator(userId: string, payload: UpdatePlatformOperatorPayload): Observable<PlatformOperator> {
+    return this.http
+      .patch<ApiResponse<PlatformOperator>>(`${this.apiBase}/operators/${userId}`, payload)
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo actualizar el operador.')));
+  }
+
+  blockOperator(userId: string, justification: string): Observable<PlatformOperator> {
+    return this.http
+      .post<ApiResponse<PlatformOperator>>(`${this.apiBase}/operators/${userId}/block`, { justification })
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo bloquear el operador.')));
+  }
+
+  unblockOperator(userId: string, justification: string): Observable<PlatformOperator> {
+    return this.http
+      .post<ApiResponse<PlatformOperator>>(`${this.apiBase}/operators/${userId}/unblock`, { justification })
+      .pipe(map((r) => this.requireSuccessData(r, 'No se pudo desbloquear el operador.')));
   }
 
   startImpersonation(payload: {

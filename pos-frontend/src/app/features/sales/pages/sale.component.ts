@@ -8,7 +8,7 @@ import { Product } from '../../../core/models/product.model';
 import { AuthService } from '../../../core/services/auth.service';
 import { CustomerService } from '../../../core/services/customer.service';
 import { FiscalService } from '../../../core/services/fiscal.service';
-import { InventoryService } from '../../../core/services/inventory.service';
+import { InventoryService, type StockLot } from '../../../core/services/inventory.service';
 import { ProductService } from '../../../core/services/product.service';
 import type { Customer } from '../../../core/models/customer.model';
 import {
@@ -73,7 +73,7 @@ const BARCODE_LIKE = /^\d{8,14}$/;
               placeholder="Escriba y pulse Enter. Códigos numéricos largos se añaden al carrito"
               autocomplete="off"
             />
-            @if (searchMatches().length > 0 && searchText().trim().length > 0) {
+            @if (searchMatches().length > 0 && searchText().trim().length > 0 && !lotPicker()) {
               <ul
                 class="mt-2 max-h-60 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 text-sm"
               >
@@ -89,6 +89,45 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                     </button>
                   </li>
                 }
+              </ul>
+            }
+            @if (lotPicker(); as picker) {
+              <ul
+                class="mt-2 max-h-48 overflow-y-auto rounded-xl border border-slate-800 bg-slate-950 text-sm"
+              >
+                <li class="px-4 py-2 text-xs text-slate-500">
+                  {{ picker.product.name }} — elegir lote (FEFO por defecto)
+                </li>
+                @for (lot of picker.lots; track lot.id) {
+                  <li>
+                    <button
+                      type="button"
+                      class="w-full px-4 py-2.5 text-left text-slate-200 hover:bg-slate-800"
+                      (click)="confirmLot(lot)"
+                    >
+                      <span class="font-medium text-slate-100">{{ lot.lotNumber }}</span>
+                      <span class="ml-2 text-slate-500">
+                        {{ lot.quantity }} u. · vence {{ lot.expirationDate }}
+                      </span>
+                      @if ($first) {
+                        <span class="ml-2 text-brand-400">FEFO</span>
+                      }
+                    </button>
+                  </li>
+                }
+                <li class="border-t border-slate-800 px-4 py-2">
+                  <div class="flex gap-2">
+                    <button type="button" class="btn-primary text-xs" (click)="confirmLot(null)">
+                      Usar FEFO
+                    </button>
+                    <button type="button" class="btn-secondary-sm" (click)="cancelLotPicker()">
+                      Cancelar
+                    </button>
+                  </div>
+                  <p class="mt-1.5 text-[11px] leading-snug text-slate-500">
+                    FEFO puede consumir varios lotes (vence primero) si la cantidad lo requiere.
+                  </p>
+                </li>
               </ul>
             }
             @if (searchHint()) {
@@ -390,7 +429,21 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                           >
                             −
                           </button>
-                          <span class="min-w-[2ch] text-center font-medium">{{ row.quantity }}</span>
+                          @if (isFerreteria()) {
+                            <input
+                              type="number"
+                              min="0.001"
+                              step="0.001"
+                              class="input-brand w-20 px-1 py-1 text-center tabular-nums"
+                              [value]="row.quantity"
+                              (change)="setQuantity(row.productId, $event, row.stockLotId)"
+                              aria-label="Cantidad"
+                            />
+                          } @else {
+                            <span class="min-w-[2ch] text-center font-medium tabular-nums">{{
+                              row.quantity
+                            }}</span>
+                          }
                           <button
                             type="button"
                             class="btn-secondary-sm px-2"
@@ -427,9 +480,11 @@ export class SaleComponent implements OnInit {
     () => this.authService.currentUser()?.businessType === 'farmacia'
   );
 
-  readonly qtyStep = computed(() =>
-    this.authService.currentUser()?.businessType === 'ferreteria' ? 0.001 : 1
+  readonly isFerreteria = computed(
+    () => this.authService.currentUser()?.businessType === 'ferreteria'
   );
+
+  readonly qtyStep = computed(() => (this.isFerreteria() ? 0.001 : 1));
 
   readonly fiscalProfileReady = signal(false);
   readonly fiscalProfileChecked = signal(false);
@@ -563,6 +618,8 @@ export class SaleComponent implements OnInit {
 
   /** Ayuda: barcode sin salto de línea se reconoce al presionar Enter. */
   readonly searchHint = signal<string | null>(null);
+  /** Farmacia: selector de lote cuando hay más de uno disponible (FEFO primero). */
+  readonly lotPicker = signal<{ product: Product; lots: readonly StockLot[] } | null>(null);
   readonly saleError = signal<string | null>(null);
   readonly lastSaleId = signal<string | null>(null);
   /** Detalle mapeado desde la respuesta del POST para {@link SaleTicketComponent}. */
@@ -652,22 +709,58 @@ export class SaleComponent implements OnInit {
 
   private async addPharmacyProduct(p: Product): Promise<void> {
     try {
+      this.lotPicker.set(null);
       const lots = await firstValueFrom(this.inventoryService.getLots(p.id));
       const available = lots.filter((l) => !l.isExpired && l.quantity > 0);
       if (available.length === 0) {
         this.saleError.set('No hay lotes con stock disponible para este producto.');
         return;
       }
-      const lot = available[0]!;
-      if (available.length > 1) {
-        this.searchHint.set(
-          `Se usó el lote ${lot.lotNumber} (vence ${lot.expirationDate}). Hay ${available.length} lotes.`
-        );
+      if (available.length === 1) {
+        const lot = available[0]!;
+        // Omitir stockLotId: el backend asigna FEFO; la etiqueta es informativa.
+        this.mergeLine(p, null, `FEFO · ${lot.lotNumber} · vence ${lot.expirationDate}`);
+        this.searchText.set('');
+        return;
       }
-      this.mergeLine(p, lot.id, `${lot.lotNumber} · vence ${lot.expirationDate}`);
+      this.lotPicker.set({ product: p, lots: available });
+      this.searchHint.set('Hay varios lotes. Elija uno o use FEFO (vence primero).');
     } catch (e: unknown) {
       this.saleError.set(e instanceof Error ? e.message : 'No se pudieron cargar los lotes.');
     }
+  }
+
+  confirmLot(lot: StockLot | null): void {
+    const picker = this.lotPicker();
+    if (!picker) {
+      return;
+    }
+    if (lot) {
+      this.mergeLine(picker.product, lot.id, `${lot.lotNumber} · vence ${lot.expirationDate}`);
+      this.searchHint.set(null);
+    } else {
+      const fefo = picker.lots[0]!;
+      const lotCount = picker.lots.length;
+      this.mergeLine(
+        picker.product,
+        null,
+        lotCount > 1
+          ? `FEFO · hasta ${lotCount} lotes · vence primero ${fefo.lotNumber}`
+          : `FEFO · ${fefo.lotNumber} · vence ${fefo.expirationDate}`
+      );
+      this.searchHint.set(
+        lotCount > 1
+          ? 'FEFO: si la cantidad supera un lote, se consumirán varios en orden de vencimiento.'
+          : null
+      );
+    }
+    this.lotPicker.set(null);
+    this.searchText.set('');
+  }
+
+  cancelLotPicker(): void {
+    this.lotPicker.set(null);
+    this.searchHint.set(null);
   }
 
   private mergeLine(p: Product, stockLotId: string | null, lotLabel: string | null): void {
@@ -719,9 +812,45 @@ export class SaleComponent implements OnInit {
         );
       }
       const next = [...rows];
-      next[i] = { ...rows[i]!, quantity: Math.round(q * 1000) / 1000 };
+      next[i] = { ...rows[i]!, quantity: this.normalizeQty(q) };
       return next;
     });
+  }
+
+  /** Ferretería: cantidad decimal tipable (máx. 3 decimales, > 0). Otros rubros: enteros. */
+  setQuantity(productId: string, e: Event, stockLotId?: string | null): void {
+    const raw = Number((e.target as HTMLInputElement).value);
+    const n = this.normalizeQty(Number.isFinite(raw) ? raw : 0);
+    if (n <= 0) {
+      this.items.update((rows) =>
+        rows.filter(
+          (r) => !(r.productId === productId && (r.stockLotId ?? null) === (stockLotId ?? null))
+        )
+      );
+      return;
+    }
+    this.items.update((rows) => {
+      const i = rows.findIndex(
+        (r) => r.productId === productId && (r.stockLotId ?? null) === (stockLotId ?? null)
+      );
+      if (i < 0) {
+        return rows;
+      }
+      const next = [...rows];
+      next[i] = { ...rows[i]!, quantity: n };
+      return next;
+    });
+  }
+
+  private normalizeQty(raw: number): number {
+    if (!(raw > 0) || !Number.isFinite(raw)) {
+      return 0;
+    }
+    if (this.isFerreteria()) {
+      // Alinea con HardwareStockPolicy: positivo y ≤ 3 decimales.
+      return Math.max(0.001, Math.round(raw * 1000) / 1000);
+    }
+    return Math.max(1, Math.floor(raw));
   }
 
   lineTotal(row: SaleItem): number {

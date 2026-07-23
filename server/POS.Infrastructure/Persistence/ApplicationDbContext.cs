@@ -33,6 +33,10 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<TenantEntitlement> TenantEntitlements => Set<TenantEntitlement>();
 
+    public DbSet<TenantSubscription> TenantSubscriptions => Set<TenantSubscription>();
+
+    public DbSet<SubscriptionInvoice> SubscriptionInvoices => Set<SubscriptionInvoice>();
+
     public DbSet<Product> Products => Set<Product>();
 
     public DbSet<Sale> Sales => Set<Sale>();
@@ -72,6 +76,8 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         ConfigureTenant(modelBuilder);
         ConfigurePlatformAuditEvent(modelBuilder);
         ConfigureTenantEntitlement(modelBuilder);
+        ConfigureTenantSubscription(modelBuilder);
+        ConfigureSubscriptionInvoice(modelBuilder);
         ConfigureProduct(modelBuilder);
         modelBuilder.Entity<Product>().HasQueryFilter(p => p.TenantId == _currentTenantId);
         ConfigureSale(modelBuilder);
@@ -418,9 +424,11 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.QuantityDelta).HasPrecision(18, 3);
             entity.Property(e => e.QuantityAfter).HasPrecision(18, 3);
             entity.Property(e => e.LotNumberSnapshot).HasMaxLength(128);
-            entity.Property(e => e.Reason).HasMaxLength(512);
+            entity.Property(e => e.ReasonCode).HasMaxLength(64);
+            entity.Property(e => e.ReasonNote).HasMaxLength(512);
             entity.Property(e => e.CreatedByUserId).IsRequired().HasMaxLength(128);
             entity.HasIndex(e => new { e.TenantId, e.ProductId, e.CreatedAt });
+            entity.HasIndex(e => new { e.TenantId, e.CreatedAt });
             entity
                 .HasOne(e => e.Product)
                 .WithMany()
@@ -539,6 +547,63 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(e => e.TenantId);
             entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
             entity.Property(e => e.UpdatedAtUtc).IsRequired();
+
+            entity
+                .HasOne<Tenant>()
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureTenantSubscription(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TenantSubscription>(entity =>
+        {
+            entity.ToTable("TenantSubscriptions");
+            entity.HasKey(e => e.TenantId);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.PlanCode).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.BillingCycle).IsRequired();
+            entity.Property(e => e.Provider).IsRequired();
+            entity.Property(e => e.ExternalCustomerId).HasMaxLength(128);
+            entity.Property(e => e.ExternalSubscriptionId).HasMaxLength(128);
+            entity.Property(e => e.CurrentPeriodStartUtc).IsRequired();
+            entity.Property(e => e.CurrentPeriodEndUtc).IsRequired();
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.Property(e => e.UpdatedAtUtc).IsRequired();
+            entity.HasIndex(e => e.CurrentPeriodEndUtc);
+            entity.HasIndex(e => e.Status);
+
+            entity
+                .HasOne<Tenant>()
+                .WithMany()
+                .HasForeignKey(e => e.TenantId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureSubscriptionInvoice(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SubscriptionInvoice>(entity =>
+        {
+            entity.ToTable("SubscriptionInvoices");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.InvoiceNumber).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.Status).IsRequired();
+            entity.Property(e => e.PlanCode).IsRequired().HasMaxLength(64);
+            entity.Property(e => e.BillingCycle).IsRequired();
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.Property(e => e.Currency).IsRequired().HasMaxLength(3);
+            entity.Property(e => e.Provider).IsRequired();
+            entity.Property(e => e.ExternalInvoiceId).HasMaxLength(128);
+            entity.Property(e => e.Notes).HasMaxLength(500);
+            entity.Property(e => e.CreatedAtUtc).IsRequired();
+            entity.HasIndex(e => new { e.TenantId, e.InvoiceNumber }).IsUnique();
+            entity.HasIndex(e => new { e.TenantId, e.CreatedAtUtc });
 
             entity
                 .HasOne<Tenant>()

@@ -4,7 +4,6 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.DependencyInjection;
 using POS.Application.Contracts.Platform;
 using POS.Domain.Entities;
-using POS.Domain.Platform;
 using Xunit;
 
 namespace POS.API.IntegrationTests;
@@ -20,31 +19,28 @@ public sealed class PlatformTenantUsersIntegrationTests
         using var platformClient = factory.CreateClient();
         platformClient.DefaultRequestHeaders.Add("X-Test-Platform", "true");
 
+        var email = $"p6-{Guid.NewGuid():N}@test.local";
         var createTenantRes = await platformClient.PostAsJsonAsync(
             "/api/platform/tenants",
-            new CreateTenantApiRequest { Name = "Tenant usuarios", ContactEmail = null });
+            new CreateTenantApiRequest
+            {
+                Name = "Tenant usuarios",
+                ContactEmail = null,
+                AdminEmail = email,
+                AdminFullName = "Usuario P6",
+                AdminPassword = "Pass123!"
+            });
         Assert.Equal(HttpStatusCode.OK, createTenantRes.StatusCode);
         var created = await createTenantRes.Content.ReadFromJsonAsync<ApiResponse<TenantDetailDto>>();
         var tenantId = created!.Data!.Id;
 
-        var email = $"p6-{Guid.NewGuid():N}@test.local";
         string userId;
         using (var scope = factory.Services.CreateScope())
         {
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var appUser = new ApplicationUser
-            {
-                UserName = email,
-                Email = email,
-                EmailConfirmed = true,
-                TenantId = tenantId,
-                FullName = "Usuario P6",
-                BusinessType = "Kiosco",
-                AccountKind = UserAccountKind.TenantUser
-            };
-            var cr = await users.CreateAsync(appUser, "Pass123!");
-            Assert.True(cr.Succeeded);
-            userId = appUser.Id;
+            var appUser = await users.FindByEmailAsync(email);
+            Assert.NotNull(appUser);
+            userId = appUser!.Id;
         }
 
         var listRes = await platformClient.GetAsync($"/api/platform/tenants/{tenantId}/users?page=1&pageSize=10");
@@ -79,13 +75,23 @@ public sealed class PlatformTenantUsersIntegrationTests
     {
         await using var factory = new TestWebApplicationFactory();
         await factory.InitializeAsync();
+        factory.EmailSender.Clear();
 
         using var platformClient = factory.CreateClient();
         platformClient.DefaultRequestHeaders.Add("X-Test-Platform", "true");
 
+        var em = $"r-{Guid.NewGuid():N}@test.local";
         var createTenantRes = await platformClient.PostAsJsonAsync(
             "/api/platform/tenants",
-            new CreateTenantApiRequest { Name = "Tenant reset", ContactEmail = null });
+            new CreateTenantApiRequest
+            {
+                Name = "Tenant reset",
+                ContactEmail = null,
+                AdminEmail = em,
+                AdminFullName = "R",
+                AdminPassword = "Pass123!"
+            });
+        Assert.Equal(HttpStatusCode.OK, createTenantRes.StatusCode);
         var created = await createTenantRes.Content.ReadFromJsonAsync<ApiResponse<TenantDetailDto>>();
         var tenantId = created!.Data!.Id;
 
@@ -93,19 +99,9 @@ public sealed class PlatformTenantUsersIntegrationTests
         using (var scope = factory.Services.CreateScope())
         {
             var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-            var em = $"r-{Guid.NewGuid():N}@test.local";
-            var appUser = new ApplicationUser
-            {
-                UserName = em,
-                Email = em,
-                EmailConfirmed = true,
-                TenantId = tenantId,
-                FullName = "R",
-                BusinessType = "Kiosco",
-                AccountKind = UserAccountKind.TenantUser
-            };
-            await users.CreateAsync(appUser, "Pass123!");
-            userId = appUser.Id;
+            var appUser = await users.FindByEmailAsync(em);
+            Assert.NotNull(appUser);
+            userId = appUser!.Id;
         }
 
         var res = await platformClient.PostAsJsonAsync(
@@ -115,6 +111,63 @@ public sealed class PlatformTenantUsersIntegrationTests
         var body = await res.Content.ReadFromJsonAsync<ApiResponse<PlatformMutationAckDto>>();
         Assert.True(body?.Success);
         Assert.NotNull(body?.Data?.Message);
+        Assert.Contains("envió", body!.Data!.Message, StringComparison.OrdinalIgnoreCase);
+
+        var sent = factory.EmailSender.Sent;
+        Assert.Single(sent);
+        Assert.Equal(em, sent[0].To);
+        Assert.Contains("Restablecer", sent[0].Subject, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("Token:", sent[0].PlainTextBody, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ResendEmailConfirmation_SendsMail_WhenUnconfirmed()
+    {
+        await using var factory = new TestWebApplicationFactory();
+        await factory.InitializeAsync();
+        factory.EmailSender.Clear();
+
+        using var platformClient = factory.CreateClient();
+        platformClient.DefaultRequestHeaders.Add("X-Test-Platform", "true");
+
+        var em = $"c-{Guid.NewGuid():N}@test.local";
+        var createTenantRes = await platformClient.PostAsJsonAsync(
+            "/api/platform/tenants",
+            new CreateTenantApiRequest
+            {
+                Name = "Tenant confirm",
+                ContactEmail = null,
+                AdminEmail = em,
+                AdminFullName = "C",
+                AdminPassword = "Pass123!"
+            });
+        Assert.Equal(HttpStatusCode.OK, createTenantRes.StatusCode);
+        var created = await createTenantRes.Content.ReadFromJsonAsync<ApiResponse<TenantDetailDto>>();
+        var tenantId = created!.Data!.Id;
+
+        string userId;
+        using (var scope = factory.Services.CreateScope())
+        {
+            var users = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+            var appUser = await users.FindByEmailAsync(em);
+            Assert.NotNull(appUser);
+            userId = appUser!.Id;
+            appUser.EmailConfirmed = false;
+            var update = await users.UpdateAsync(appUser);
+            Assert.True(update.Succeeded);
+        }
+
+        var res = await platformClient.PostAsJsonAsync(
+            $"/api/platform/tenants/{tenantId}/users/{userId}/resend-email-confirmation",
+            new PlatformUserActionRequest { Justification = "Reenvío de confirmación por soporte" });
+        Assert.Equal(HttpStatusCode.OK, res.StatusCode);
+        var body = await res.Content.ReadFromJsonAsync<ApiResponse<PlatformMutationAckDto>>();
+        Assert.True(body?.Success);
+
+        var sent = factory.EmailSender.Sent;
+        Assert.Single(sent);
+        Assert.Equal(em, sent[0].To);
+        Assert.Contains("Confirmá", sent[0].Subject, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

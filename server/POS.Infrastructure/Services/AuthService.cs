@@ -10,17 +10,23 @@ using POS.Domain.Entities;
 using POS.Domain.Platform;
 using POS.Domain.Tenant;
 using POS.Infrastructure.Configuration;
+using POS.Infrastructure.Email;
 using POS.Infrastructure.Persistence;
 
 namespace POS.Infrastructure.Services;
 
 public sealed class AuthService : IAuthService
 {
+    private const string ForgotPasswordAckMessage =
+        "Si el email está registrado, te enviamos un enlace para restablecer la contraseña.";
+
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly RoleManager<IdentityRole> _roleManager;
     private readonly ApplicationDbContext _context;
     private readonly ICurrentUserTenantContext _tenantContext;
     private readonly IJwtTokenService _jwtTokenService;
+    private readonly IEmailSender _emailSender;
+    private readonly EmailOptions _emailOptions;
     private readonly ILogger<AuthService> _logger;
     private readonly JwtOptions _jwt;
 
@@ -30,6 +36,8 @@ public sealed class AuthService : IAuthService
         ApplicationDbContext context,
         ICurrentUserTenantContext tenantContext,
         IJwtTokenService jwtTokenService,
+        IEmailSender emailSender,
+        IOptions<EmailOptions> emailOptions,
         IOptions<JwtOptions> jwt,
         ILogger<AuthService> logger)
     {
@@ -38,6 +46,8 @@ public sealed class AuthService : IAuthService
         _context = context;
         _tenantContext = tenantContext;
         _jwtTokenService = jwtTokenService;
+        _emailSender = emailSender;
+        _emailOptions = emailOptions.Value;
         _logger = logger;
         _jwt = jwt.Value;
     }
@@ -210,6 +220,139 @@ public sealed class AuthService : IAuthService
         return Result<AuthResponse>.Ok(MakeAuthResponse(user, accessToken, businessType, roles));
     }
 
+    public async Task<Result<AuthMessageResponse>> ConfirmEmailAsync(
+        ConfirmEmailRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email) || string.IsNullOrWhiteSpace(request.Token))
+        {
+            return Result<AuthMessageResponse>.Failure(
+                "auth.confirm.invalid",
+                "El enlace de confirmación no es válido o expiró.");
+        }
+
+        var email = request.Email.Trim();
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            return Result<AuthMessageResponse>.Failure(
+                "auth.confirm.invalid",
+                "El enlace de confirmación no es válido o expiró.");
+        }
+
+        if (await _userManager.IsEmailConfirmedAsync(user))
+        {
+            return Result<AuthMessageResponse>.Ok(new AuthMessageResponse
+            {
+                Message = "El correo ya estaba confirmado. Ya podés iniciar sesión."
+            });
+        }
+
+        var result = await _userManager.ConfirmEmailAsync(user, request.Token.Trim());
+        if (!result.Succeeded)
+        {
+            var details = string.Join(" ", result.Errors.Select(e => e.Description));
+            _logger.LogWarning("ConfirmEmail falló para {Email}: {Details}", email, details);
+            return Result<AuthMessageResponse>.Failure(
+                "auth.confirm.invalid",
+                "El enlace de confirmación no es válido o expiró.");
+        }
+
+        return Result<AuthMessageResponse>.Ok(new AuthMessageResponse
+        {
+            Message = "Correo confirmado correctamente. Ya podés iniciar sesión."
+        });
+    }
+
+    public async Task<Result<AuthMessageResponse>> ResetPasswordAsync(
+        ResetPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email)
+            || string.IsNullOrWhiteSpace(request.Token)
+            || string.IsNullOrEmpty(request.NewPassword))
+        {
+            return Result<AuthMessageResponse>.Failure(
+                "auth.reset.invalid",
+                "No se pudo restablecer la contraseña. Revisá el enlace y la nueva contraseña.");
+        }
+
+        var email = request.Email.Trim();
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null)
+        {
+            return Result<AuthMessageResponse>.Failure(
+                "auth.reset.invalid",
+                "No se pudo restablecer la contraseña. Revisá el enlace y la nueva contraseña.");
+        }
+
+        var result = await _userManager.ResetPasswordAsync(user, request.Token.Trim(), request.NewPassword);
+        if (!result.Succeeded)
+        {
+            var details = string.Join(" ", result.Errors.Select(e => e.Description));
+            _logger.LogWarning("ResetPassword falló para {Email}: {Details}", email, details);
+
+            if (result.Errors.Any(e =>
+                    e.Code.Contains("Password", StringComparison.OrdinalIgnoreCase)))
+            {
+                return Result<AuthMessageResponse>.Failure(
+                    "auth.reset.password_invalid",
+                    details.Length > 0 ? details : "La nueva contraseña no cumple los requisitos.");
+            }
+
+            return Result<AuthMessageResponse>.Failure(
+                "auth.reset.invalid",
+                "No se pudo restablecer la contraseña. El enlace puede haber expirado.");
+        }
+
+        return Result<AuthMessageResponse>.Ok(new AuthMessageResponse
+        {
+            Message = "Contraseña actualizada. Ya podés iniciar sesión."
+        });
+    }
+
+    public async Task<Result<AuthMessageResponse>> ForgotPasswordAsync(
+        ForgotPasswordRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(request.Email))
+        {
+            return Result<AuthMessageResponse>.Failure(
+                "auth.forgot.validation",
+                "El email es obligatorio.");
+        }
+
+        var email = request.Email.Trim();
+        var ack = Result<AuthMessageResponse>.Ok(new AuthMessageResponse
+        {
+            Message = ForgotPasswordAckMessage
+        });
+
+        var user = await _userManager.FindByEmailAsync(email);
+        if (user is null
+            || user.AccountKind != UserAccountKind.TenantUser
+            || string.IsNullOrWhiteSpace(user.Email))
+        {
+            return ack;
+        }
+
+        try
+        {
+            var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+            await _emailSender.SendAsync(
+                AuthEmailComposer.PasswordReset(_emailOptions, user.Email, token),
+                cancellationToken);
+            _logger.LogInformation("ForgotPassword: correo de reset enviado a {Email}", user.Email);
+        }
+        catch (Exception ex)
+        {
+            // Misma respuesta genérica: no filtrar existencia por fallos de envío.
+            _logger.LogError(ex, "ForgotPassword: no se pudo enviar email de reset a {Email}", user.Email);
+        }
+
+        return ack;
+    }
+
     public async Task<Result<AuthResponse>> PlatformLoginAsync(
         LoginRequest request,
         CancellationToken cancellationToken = default)
@@ -237,6 +380,13 @@ public sealed class AuthService : IAuthService
             return Result<AuthResponse>.Failure(
                 "auth.platform.not_platform_user",
                 "Esta cuenta no es de consola de plataforma. Use el login POS habitual.");
+        }
+
+        if (user.BlockedByPlatform)
+        {
+            return Result<AuthResponse>.Failure(
+                "auth.platform.blocked",
+                "La cuenta de plataforma está bloqueada.");
         }
 
         var assignedRoles = await _userManager.GetRolesAsync(user);

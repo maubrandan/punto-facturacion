@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Auth;
@@ -7,6 +8,7 @@ namespace POS.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[AllowAnonymous]
 public sealed class AuthController : ControllerBase
 {
     private readonly IAuthService _authService;
@@ -50,6 +52,48 @@ public sealed class AuthController : ControllerBase
             return Unauthorized(body);
         }
 
+        return Ok(body);
+    }
+
+    [HttpPost("confirm-email")]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ConfirmEmail(
+        [FromBody] ConfirmEmailRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ConfirmEmailAsync(request, cancellationToken);
+        var body = ApiResponse<AuthMessageResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return BadRequest(body);
+        return Ok(body);
+    }
+
+    [HttpPost("reset-password")]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ResetPassword(
+        [FromBody] ResetPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ResetPasswordAsync(request, cancellationToken);
+        var body = ApiResponse<AuthMessageResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return BadRequest(body);
+        return Ok(body);
+    }
+
+    [HttpPost("forgot-password")]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<AuthMessageResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ForgotPassword(
+        [FromBody] ForgotPasswordRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _authService.ForgotPasswordAsync(request, cancellationToken);
+        var body = ApiResponse<AuthMessageResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return BadRequest(body);
         return Ok(body);
     }
 }

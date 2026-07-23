@@ -61,6 +61,8 @@ public sealed class InventoryQueryService : IInventoryQueryService
         Guid? productId,
         int page,
         int pageSize,
+        DateTime? fromUtc = null,
+        DateTime? toUtc = null,
         CancellationToken cancellationToken = default)
     {
         if (page < 1) page = 1;
@@ -70,6 +72,18 @@ public sealed class InventoryQueryService : IInventoryQueryService
         var query = _db.StockMovements.AsNoTracking().AsQueryable();
         if (productId is not null)
             query = query.Where(m => m.ProductId == productId);
+
+        if (fromUtc is not null)
+        {
+            var from = NormalizeUtc(fromUtc.Value);
+            query = query.Where(m => m.CreatedAt >= from);
+        }
+
+        if (toUtc is not null)
+        {
+            var to = NormalizeUtc(toUtc.Value);
+            query = query.Where(m => m.CreatedAt <= to);
+        }
 
         var total = await query.CountAsync(cancellationToken);
         var items = await query
@@ -94,7 +108,8 @@ public sealed class InventoryQueryService : IInventoryQueryService
             StockLotId = x.m.StockLotId,
             LotNumberSnapshot = x.m.LotNumberSnapshot,
             ExpirationSnapshot = x.m.ExpirationSnapshot,
-            Reason = x.m.Reason,
+            ReasonCode = x.m.ReasonCode,
+            ReasonNote = x.m.ReasonNote,
             ReferenceId = x.m.ReferenceId,
             CreatedAt = x.m.CreatedAt
         }).ToList();
@@ -108,4 +123,111 @@ public sealed class InventoryQueryService : IInventoryQueryService
                 TotalCount = total
             });
     }
+
+    public Task<Result<IReadOnlyList<AdjustmentReasonOptionResponse>>> GetAdjustmentReasonsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var options = StockAdjustmentReasonCodes.Options()
+            .Select(o => new AdjustmentReasonOptionResponse { Code = o.Code, Label = o.Label })
+            .ToList();
+        return Task.FromResult(
+            Result<IReadOnlyList<AdjustmentReasonOptionResponse>>.Ok(options));
+    }
+
+    public async Task<Result<ExpiryAlertsResponse>> GetExpiryAlertsAsync(
+        int? withinDays = null,
+        CancellationToken cancellationToken = default)
+    {
+        var tenantId = _currentUser.TenantId?.Trim();
+        if (string.IsNullOrEmpty(tenantId))
+        {
+            return Result<ExpiryAlertsResponse>.Failure(
+                "stock.tenant_required",
+                "No se pudo determinar el comercio (tenant).");
+        }
+
+        var days = withinDays ?? PharmacyExpiryAlertRules.DefaultWithinDays;
+        if (days < PharmacyExpiryAlertRules.MinWithinDays)
+            days = PharmacyExpiryAlertRules.MinWithinDays;
+        if (days > PharmacyExpiryAlertRules.MaxWithinDays)
+            days = PharmacyExpiryAlertRules.MaxWithinDays;
+
+        var businessType = await _db.Tenants
+            .AsNoTracking()
+            .Where(t => t.Id == tenantId)
+            .Select(t => t.BusinessType)
+            .FirstOrDefaultAsync(cancellationToken);
+
+        var isFarmacia = !string.IsNullOrWhiteSpace(businessType)
+            && BusinessTypeNames.IsKnown(businessType)
+            && string.Equals(
+                BusinessTypeNames.Normalize(businessType),
+                BusinessTypeNames.Farmacia,
+                StringComparison.Ordinal);
+
+        if (!isFarmacia)
+        {
+            return Result<ExpiryAlertsResponse>.Ok(
+                new ExpiryAlertsResponse
+                {
+                    Supported = false,
+                    WithinDays = days,
+                    Items = Array.Empty<ExpiryAlertItemResponse>()
+                });
+        }
+
+        var today = DateOnly.FromDateTime(DateTime.UtcNow);
+        var horizon = today.AddDays(days);
+
+        var lots = await _db.StockLots
+            .AsNoTracking()
+            .Where(l => l.Quantity > 0m && l.ExpirationDate <= horizon)
+            .Join(
+                _db.Products.AsNoTracking(),
+                l => l.ProductId,
+                p => p.Id,
+                (l, p) => new { l, p.Name })
+            .OrderBy(x => x.l.ExpirationDate)
+            .ThenBy(x => x.Name)
+            .ThenBy(x => x.l.LotNumber)
+            .Take(100)
+            .ToListAsync(cancellationToken);
+
+        var items = lots.Select(x =>
+        {
+            var daysTo = x.l.ExpirationDate.DayNumber - today.DayNumber;
+            var status = daysTo < 0
+                ? ExpiryAlertStatuses.Expired
+                : ExpiryAlertStatuses.ExpiringSoon;
+
+            return new ExpiryAlertItemResponse
+            {
+                StockLotId = x.l.Id,
+                ProductId = x.l.ProductId,
+                ProductName = x.Name,
+                LotNumber = x.l.LotNumber,
+                ExpirationDate = x.l.ExpirationDate,
+                Quantity = x.l.Quantity,
+                Status = status,
+                DaysToExpiration = daysTo
+            };
+        }).ToList();
+
+        return Result<ExpiryAlertsResponse>.Ok(
+            new ExpiryAlertsResponse
+            {
+                Supported = true,
+                WithinDays = days,
+                Items = items
+            });
+    }
+
+    private static DateTime NormalizeUtc(DateTime value) =>
+        value.Kind switch
+        {
+            DateTimeKind.Utc => value,
+            DateTimeKind.Local => value.ToUniversalTime(),
+            _ => DateTime.SpecifyKind(value, DateTimeKind.Utc)
+        };
 }

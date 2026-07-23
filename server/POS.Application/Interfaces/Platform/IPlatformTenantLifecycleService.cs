@@ -18,7 +18,15 @@ public interface IPlatformTenantLifecycleService
         SuspendPlatformTenantCommand command,
         CancellationToken cancellationToken = default);
 
+    Task<Result<TenantDetailDto>> UnsuspendAsync(
+        UnsuspendPlatformTenantCommand command,
+        CancellationToken cancellationToken = default);
+
     Task<Result<TenantDetailDto>> CloseAsync(
         ClosePlatformTenantCommand command,
+        CancellationToken cancellationToken = default);
+
+    Task<Result<TenantDetailDto>> ReopenAsync(
+        ReopenPlatformTenantCommand command,
         CancellationToken cancellationToken = default);
 }

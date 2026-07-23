@@ -2,12 +2,17 @@ using System.Linq;
 using FluentValidation;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using POS.Application.Common;
 using POS.Application.Contracts.Platform;
+using POS.Application.Interfaces;
 using POS.Application.Interfaces.Platform;
 using POS.Application.Platform;
 using POS.Domain.Entities;
 using POS.Domain.Platform;
+using POS.Infrastructure.Configuration;
+using POS.Infrastructure.Email;
 
 namespace POS.Infrastructure.Platform;
 
@@ -17,17 +22,26 @@ public sealed class PlatformTenantUserAdminService : IPlatformTenantUserAdminSer
     private readonly IPlatformDirectoryQuery _tenants;
     private readonly IPlatformAuditService _audit;
     private readonly IValidator<PlatformUserActionRequest> _justificationValidator;
+    private readonly IEmailSender _emailSender;
+    private readonly EmailOptions _emailOptions;
+    private readonly ILogger<PlatformTenantUserAdminService> _logger;
 
     public PlatformTenantUserAdminService(
         UserManager<ApplicationUser> userManager,
         IPlatformDirectoryQuery tenants,
         IPlatformAuditService audit,
-        IValidator<PlatformUserActionRequest> justificationValidator)
+        IValidator<PlatformUserActionRequest> justificationValidator,
+        IEmailSender emailSender,
+        IOptions<EmailOptions> emailOptions,
+        ILogger<PlatformTenantUserAdminService> logger)
     {
         _userManager = userManager;
         _tenants = tenants;
         _audit = audit;
         _justificationValidator = justificationValidator;
+        _emailSender = emailSender;
+        _emailOptions = emailOptions.Value;
+        _logger = logger;
     }
 
     public Task<Result<TenantUserSummaryDto>> BlockAsync(
@@ -135,13 +149,34 @@ public sealed class PlatformTenantUserAdminService : IPlatformTenantUserAdminSer
                 "Solo se pueden gestionar usuarios de negocio del tenant.");
         }
 
-        _ = await _userManager.GeneratePasswordResetTokenAsync(user);
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return Result<PlatformMutationAckDto>.Failure(
+                "platform.users.email_missing",
+                "El usuario no tiene email para enviar el restablecimiento.");
+        }
+
+        var token = await _userManager.GeneratePasswordResetTokenAsync(user);
+        try
+        {
+            await _emailSender.SendAsync(
+                AuthEmailComposer.PasswordReset(_emailOptions, user.Email, token),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo enviar email de reset a {Email}", user.Email);
+            return Result<PlatformMutationAckDto>.Failure(
+                "platform.users.email_send_failed",
+                "No se pudo enviar el correo de restablecimiento.");
+        }
+
         await _audit.LogAsync(
             new PlatformAuditEventData(
                 "TenantUserPasswordResetRequested",
                 nameof(ApplicationUser),
                 user.Id,
-                "Token generado por Identity; conectar envío de correo en producción.",
+                $"Correo de restablecimiento enviado a {user.Email}.",
                 justification.Trim(),
                 tenantId),
             cancellationToken);
@@ -149,8 +184,7 @@ public sealed class PlatformTenantUserAdminService : IPlatformTenantUserAdminSer
         return Result<PlatformMutationAckDto>.Ok(
             new PlatformMutationAckDto
             {
-                Message =
-                    "Solicitud registrada. Se generó el token de restablecimiento; en producción debe enviarse por el canal de correo configurado."
+                Message = "Solicitud registrada. Se envió el correo de restablecimiento."
             });
     }
 
@@ -195,13 +229,34 @@ public sealed class PlatformTenantUserAdminService : IPlatformTenantUserAdminSer
                 "El correo ya está confirmado.");
         }
 
-        _ = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        if (string.IsNullOrWhiteSpace(user.Email))
+        {
+            return Result<PlatformMutationAckDto>.Failure(
+                "platform.users.email_missing",
+                "El usuario no tiene email para reenviar la confirmación.");
+        }
+
+        var token = await _userManager.GenerateEmailConfirmationTokenAsync(user);
+        try
+        {
+            await _emailSender.SendAsync(
+                AuthEmailComposer.EmailConfirmation(_emailOptions, user.Email, token),
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "No se pudo enviar email de confirmación a {Email}", user.Email);
+            return Result<PlatformMutationAckDto>.Failure(
+                "platform.users.email_send_failed",
+                "No se pudo enviar el correo de confirmación.");
+        }
+
         await _audit.LogAsync(
             new PlatformAuditEventData(
                 "TenantUserEmailConfirmationResent",
                 nameof(ApplicationUser),
                 user.Id,
-                "Token generado por Identity; conectar envío de correo en producción.",
+                $"Correo de confirmación enviado a {user.Email}.",
                 justification.Trim(),
                 tenantId),
             cancellationToken);
@@ -209,8 +264,7 @@ public sealed class PlatformTenantUserAdminService : IPlatformTenantUserAdminSer
         return Result<PlatformMutationAckDto>.Ok(
             new PlatformMutationAckDto
             {
-                Message =
-                    "Solicitud registrada. Se generó el token de confirmación; en producción debe enviarse por el canal de correo configurado."
+                Message = "Solicitud registrada. Se envió el correo de confirmación."
             });
     }
 
