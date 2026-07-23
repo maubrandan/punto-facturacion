@@ -19,6 +19,7 @@ export interface CreateSalePaymentDto {
 export interface CreateSaleDto {
   lines: CreateSaleLineDto[];
   payments: CreateSalePaymentDto[];
+  customerId?: string | null;
 }
 
 export interface SaleLineResponse {
@@ -83,6 +84,28 @@ export interface DailySummaryResult {
   topProductId: string | null;
   topProductName: string | null;
   topProductUnits: number;
+}
+
+export interface SalesReportPaymentBreakdown {
+  method: number;
+  amount: number;
+  paymentCount: number;
+}
+
+export interface SalesReportCashierBreakdown {
+  createdByUserId: string | null;
+  createdByUserName: string;
+  totalAmount: number;
+  salesCount: number;
+}
+
+export interface SalesReportResult {
+  startDate: string;
+  endDate: string;
+  totalSalesAmount: number;
+  salesCount: number;
+  byPaymentMethod: SalesReportPaymentBreakdown[];
+  byCashier: SalesReportCashierBreakdown[];
 }
 
 export interface SaleResponse {
@@ -199,6 +222,19 @@ export class SaleService {
     }
     return this.http
       .get<ApiResponse<DailySummaryResult>>(`${this.apiBaseUrl}/daily-summary`, { params })
+      .pipe(map((response) => this.requireSuccessData(response)));
+  }
+
+  getSalesReport(filters?: { startDate?: string; endDate?: string }) {
+    let params = new HttpParams();
+    if (filters?.startDate) {
+      params = params.set('startDate', filters.startDate);
+    }
+    if (filters?.endDate) {
+      params = params.set('endDate', filters.endDate);
+    }
+    return this.http
+      .get<ApiResponse<SalesReportResult>>(`${this.apiBaseUrl}/report`, { params })
       .pipe(map((response) => this.requireSuccessData(response)));
   }
 

@@ -2,7 +2,8 @@
 export const PAYMENT_METHOD = {
   Cash: 0,
   Card: 1,
-  Transfer: 2
+  Transfer: 2,
+  Credit: 3
 } as const;
 
 export type PaymentMethodCode = (typeof PAYMENT_METHOD)[keyof typeof PAYMENT_METHOD];
@@ -15,6 +16,8 @@ export function paymentMethodLabel(method: number): string {
       return 'Tarjeta';
     case PAYMENT_METHOD.Transfer:
       return 'Transferencia';
+    case PAYMENT_METHOD.Credit:
+      return 'Cuenta corriente';
     default:
       return `Medio ${method}`;
   }

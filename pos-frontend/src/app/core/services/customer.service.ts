@@ -30,6 +30,41 @@ export interface CustomerWritePayload {
   address: string;
 }
 
+export interface CustomerAccountMovement {
+  id: string;
+  type: number;
+  amount: number;
+  balanceAfter: number;
+  saleId: string | null;
+  notes: string | null;
+  settlementMethod: number | null;
+  cashSessionId: string | null;
+  createdByUserId: string | null;
+  createdAt: string;
+}
+
+export interface CustomerAccount {
+  customerId: string;
+  customerName: string;
+  balance: number;
+  recentMovements: CustomerAccountMovement[];
+}
+
+export interface RegisterCustomerAccountPaymentPayload {
+  amount: number;
+  method: number;
+  notes?: string | null;
+}
+
+export interface RegisterCustomerAccountPaymentResult {
+  movementId: string;
+  amount: number;
+  balanceAfter: number;
+  settlementMethod: number;
+  cashSessionId: string | null;
+  createdAt: string;
+}
+
 @Injectable({ providedIn: 'root' })
 export class CustomerService {
   private readonly http = inject(HttpClient);
@@ -49,6 +84,43 @@ export class CustomerService {
     return this.http
       .get<ApiResponse<Customer>>(`${this.base}/${id}`)
       .pipe(map((r) => this.requireSuccessData(r)));
+  }
+
+  getAccount(id: string): Observable<CustomerAccount> {
+    return this.http
+      .get<ApiResponse<CustomerAccount>>(`${this.base}/${id}/account`)
+      .pipe(map((r) => this.requireSuccessData(r)));
+  }
+
+  getMovements(id: string): Observable<readonly CustomerAccountMovement[]> {
+    return this.http
+      .get<ApiResponse<readonly CustomerAccountMovement[]>>(`${this.base}/${id}/movements`)
+      .pipe(map((r) => this.requireSuccessData(r)));
+  }
+
+  registerAccountPayment(
+    id: string,
+    payload: RegisterCustomerAccountPaymentPayload
+  ): Observable<RequestResult<RegisterCustomerAccountPaymentResult>> {
+    return this.http
+      .post<ApiResponse<RegisterCustomerAccountPaymentResult>>(
+        `${this.base}/${id}/account/payments`,
+        payload
+      )
+      .pipe(
+        switchMap((response) => {
+          if (!response.success || response.data === null) {
+            return of(this.toFailure<RegisterCustomerAccountPaymentResult>(400, response.error));
+          }
+          return of({
+            success: true,
+            data: response.data,
+            error: null,
+            status: 200
+          });
+        }),
+        catchError((e) => of(this.toHttpError<RegisterCustomerAccountPaymentResult>(e)))
+      );
   }
 
   create(payload: CustomerWritePayload): Observable<RequestResult<Customer>> {

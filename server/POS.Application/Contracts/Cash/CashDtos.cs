@@ -38,7 +38,10 @@ public sealed class CashSessionSummaryResponse
 
     public decimal TotalSales { get; init; }
 
-    /// <summary>Suma de cobros en efectivo de las ventas del turno (entra al cajón).</summary>
+    /// <summary>
+    /// Suma de efectivo del turno: cobros Cash de ventas + cobros de cuenta corriente en efectivo
+    /// asociados a la sesión (entra al cajón).
+    /// </summary>
     public decimal TotalCashPayments { get; init; }
 
     /// <summary>Suma de cobros con tarjeta en el turno (informativo).</summary>
@@ -47,11 +50,14 @@ public sealed class CashSessionSummaryResponse
     /// <summary>Suma de cobros por transferencia en el turno (informativo).</summary>
     public decimal TotalTransferPayments { get; init; }
 
+    /// <summary>Suma de cobros en cuenta corriente en ventas del turno (informativo; no entra al cajón).</summary>
+    public decimal TotalCreditPayments { get; init; }
+
     public decimal TotalPurchases { get; init; }
 
     public decimal TotalExpenses { get; init; }
 
-    /// <summary>Saldo teórico en caja: Initial + cobros efectivo - compras - gastos.</summary>
+    /// <summary>Saldo teórico en caja: Initial + efectivo (ventas + cobros CC) - compras - gastos.</summary>
     public decimal ProjectedAmount { get; init; }
 }
 

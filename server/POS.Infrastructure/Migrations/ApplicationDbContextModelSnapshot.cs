@@ -342,6 +342,66 @@ namespace POS.Infrastructure.Migrations
                     b.ToTable("Customers", (string)null);
                 });
 
+            modelBuilder.Entity("POS.Domain.Entities.CustomerAccountMovement", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("BalanceAfter")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid?>("CashSessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(1024)
+                        .HasColumnType("nvarchar(1024)");
+
+                    b.Property<Guid?>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<int?>("SettlementMethod")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashSessionId");
+
+                    b.HasIndex("CustomerId");
+
+                    b.HasIndex("SaleId");
+
+                    b.HasIndex("TenantId", "CashSessionId");
+
+                    b.HasIndex("TenantId", "CustomerId", "CreatedAt");
+
+                    b.ToTable("CustomerAccountMovements", (string)null);
+                });
+
             modelBuilder.Entity("POS.Domain.Entities.Expense", b =>
                 {
                     b.Property<Guid>("Id")
@@ -784,6 +844,9 @@ namespace POS.Infrastructure.Migrations
                         .HasMaxLength(512)
                         .HasColumnType("nvarchar(512)");
 
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uniqueidentifier");
+
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
@@ -808,9 +871,13 @@ namespace POS.Infrastructure.Migrations
 
                     b.HasIndex("CashSessionId");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("Date");
 
                     b.HasIndex("TenantId");
+
+                    b.HasIndex("TenantId", "CustomerId");
 
                     b.HasIndex("TenantId", "Date");
 
@@ -1173,6 +1240,31 @@ namespace POS.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("POS.Domain.Entities.CustomerAccountMovement", b =>
+                {
+                    b.HasOne("POS.Domain.Entities.CashSession", "CashSession")
+                        .WithMany()
+                        .HasForeignKey("CashSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POS.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POS.Domain.Entities.Sale", "Sale")
+                        .WithMany()
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("CashSession");
+
+                    b.Navigation("Customer");
+
+                    b.Navigation("Sale");
+                });
+
             modelBuilder.Entity("POS.Domain.Entities.Expense", b =>
                 {
                     b.HasOne("POS.Domain.Entities.CashSession", "CashSession")
@@ -1253,7 +1345,14 @@ namespace POS.Infrastructure.Migrations
                         .HasForeignKey("CashSessionId")
                         .OnDelete(DeleteBehavior.Restrict);
 
+                    b.HasOne("POS.Domain.Entities.Customer", "Customer")
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("CashSession");
+
+                    b.Navigation("Customer");
                 });
 
             modelBuilder.Entity("POS.Domain.Entities.SaleDetail", b =>

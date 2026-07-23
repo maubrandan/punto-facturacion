@@ -63,6 +63,8 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<Customer> Customers => Set<Customer>();
 
+    public DbSet<CustomerAccountMovement> CustomerAccountMovements => Set<CustomerAccountMovement>();
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -78,6 +80,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         ConfigureCashAndExpenses(modelBuilder);
         ConfigureInventory(modelBuilder);
         ConfigureCustomer(modelBuilder);
+        ConfigureCustomerAccount(modelBuilder);
         ConfigureTenantQueryFilters(modelBuilder);
     }
 
@@ -187,6 +190,12 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .WithMany(s => s.Sales)
                 .HasForeignKey(e => e.CashSessionId)
                 .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.Customer)
+                .WithMany()
+                .HasForeignKey(e => e.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity.HasIndex(e => new { e.TenantId, e.CustomerId });
         });
 
         modelBuilder.Entity<SaleDetail>(entity =>
@@ -439,6 +448,39 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
             entity.Property(e => e.Address).HasMaxLength(512);
             entity.HasIndex(e => new { e.TenantId, e.TaxId }).IsUnique();
             entity.HasIndex(e => new { e.TenantId, e.Name });
+        });
+    }
+
+    private static void ConfigureCustomerAccount(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<CustomerAccountMovement>(entity =>
+        {
+            entity.ToTable("CustomerAccountMovements");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Type).HasConversion<int>();
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.Property(e => e.BalanceAfter).HasPrecision(18, 2);
+            entity.Property(e => e.Notes).HasMaxLength(1024);
+            entity.Property(e => e.SettlementMethod).HasConversion<int?>();
+            entity.Property(e => e.CreatedByUserId).HasMaxLength(128);
+            entity.HasIndex(e => new { e.TenantId, e.CustomerId, e.CreatedAt });
+            entity.HasIndex(e => new { e.TenantId, e.CashSessionId });
+            entity
+                .HasOne(e => e.Customer)
+                .WithMany()
+                .HasForeignKey(e => e.CustomerId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.Sale)
+                .WithMany()
+                .HasForeignKey(e => e.SaleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.CashSession)
+                .WithMany()
+                .HasForeignKey(e => e.CashSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
         });
     }
 

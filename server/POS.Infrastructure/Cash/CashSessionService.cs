@@ -255,7 +255,7 @@ public sealed class CashSessionService : ICashSessionService
                 select new { Method = g.Key, Total = g.Sum(x => x.Amount) })
             .ToListAsync(cancellationToken);
 
-        var totalCash = paymentRows
+        var totalCashFromSales = paymentRows
             .Where(r => r.Method == PaymentMethod.Cash)
             .Select(r => r.Total)
             .DefaultIfEmpty(0m)
@@ -270,6 +270,22 @@ public sealed class CashSessionService : ICashSessionService
             .Select(r => r.Total)
             .DefaultIfEmpty(0m)
             .Sum();
+        var totalCredit = paymentRows
+            .Where(r => r.Method == PaymentMethod.Credit)
+            .Select(r => r.Total)
+            .DefaultIfEmpty(0m)
+            .Sum();
+
+        // Cobros de CC en efectivo asociados a esta sesión (Amount es negativo → sumamos -Amount).
+        var accountCashSettlements = await _db.CustomerAccountMovements
+            .AsNoTracking()
+            .Where(
+                m => m.CashSessionId == id
+                    && m.Type == CustomerAccountMovementType.Payment
+                    && m.SettlementMethod == PaymentMethod.Cash)
+            .SumAsync(m => -m.Amount, cancellationToken);
+
+        var totalCash = totalCashFromSales + accountCashSettlements;
 
         var totalPurchases = await _db.Purchases
             .Where(p => p.CashSessionId == id)
@@ -288,6 +304,7 @@ public sealed class CashSessionService : ICashSessionService
             TotalCashPayments = totalCash,
             TotalCardPayments = totalCard,
             TotalTransferPayments = totalTransfer,
+            TotalCreditPayments = totalCredit,
             TotalPurchases = totalPurchases,
             TotalExpenses = totalExp,
             ProjectedAmount = decimal.Round(projected, 2, MidpointRounding.AwayFromZero)
@@ -378,12 +395,19 @@ public sealed class CashSessionService : ICashSessionService
         var totalSales = await _db.Sales
             .Where(s => s.CashSessionId == sessionId)
             .SumAsync(s => s.TotalAmount, cancellationToken);
-        var totalCash = await (
+        var totalCashFromSales = await (
                 from p in _db.SalePayments
                 join s in _db.Sales on p.SaleId equals s.Id
                 where s.CashSessionId == sessionId && p.Method == PaymentMethod.Cash
                 select p.Amount)
             .SumAsync(cancellationToken);
+        var accountCashSettlements = await _db.CustomerAccountMovements
+            .Where(
+                m => m.CashSessionId == sessionId
+                    && m.Type == CustomerAccountMovementType.Payment
+                    && m.SettlementMethod == PaymentMethod.Cash)
+            .SumAsync(m => -m.Amount, cancellationToken);
+        var totalCash = totalCashFromSales + accountCashSettlements;
         var totalPurch = await _db.Purchases
             .Where(p => p.CashSessionId == sessionId)
             .SumAsync(p => p.Total, cancellationToken);

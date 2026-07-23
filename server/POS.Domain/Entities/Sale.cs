@@ -28,6 +28,11 @@ public sealed class Sale : ITenantEntity
 
     public CashSession? CashSession { get; set; }
 
+    /// <summary>Cliente asociado (obligatorio si hay cobro en cuenta corriente).</summary>
+    public Guid? CustomerId { get; set; }
+
+    public Customer? Customer { get; set; }
+
     public ICollection<SaleDetail> Details { get; set; } = new List<SaleDetail>();
 
     public ICollection<SalePayment> Payments { get; set; } = new List<SalePayment>();

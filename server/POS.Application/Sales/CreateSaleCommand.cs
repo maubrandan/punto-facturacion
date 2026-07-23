@@ -9,4 +9,5 @@ public sealed record CreateSalePaymentCommand(int Method, decimal Amount);
 
 public sealed record CreateSaleCommand(
     IReadOnlyList<CreateSaleLineCommand> Lines,
-    IReadOnlyList<CreateSalePaymentCommand> Payments);
+    IReadOnlyList<CreateSalePaymentCommand> Payments,
+    Guid? CustomerId = null);

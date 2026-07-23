@@ -13,6 +13,7 @@ using POS.Infrastructure.Configuration;
 using POS.Infrastructure.Entitlements;
 using POS.Infrastructure.Platform;
 using POS.Infrastructure.Cash;
+using POS.Infrastructure.Customers;
 using POS.Infrastructure.Fiscal;
 using POS.Infrastructure.Inventory;
 using POS.Infrastructure.Purchases;
@@ -82,6 +83,8 @@ public static class DependencyInjection
         services.AddScoped<IValidator<RetryElectronicInvoiceCommand>, RetryElectronicInvoiceCommandValidator>();
         services.AddScoped<IValidator<IssueCreditNoteCommand>, IssueCreditNoteCommandValidator>();
         services.AddScoped<ICashSessionService, CashSessionService>();
+        services.AddScoped<ICustomerAccountQueryService, CustomerAccountQueryService>();
+        services.AddScoped<IRegisterCustomerAccountPaymentHandler, RegisterCustomerAccountPaymentHandler>();
         services.AddScoped<ISalesQueryService, SalesQueryService>();
         services.AddHostedService<FiscalRetryWorker>();
 

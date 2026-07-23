@@ -32,7 +32,7 @@ export interface SaleItem {
   lotLabel?: string | null;
 }
 
-type PayMode = 'cash' | 'card' | 'transfer' | 'split';
+type PayMode = 'cash' | 'card' | 'transfer' | 'split' | 'credit';
 
 const BARCODE_LIKE = /^\d{8,14}$/;
 
@@ -114,8 +114,44 @@ const BARCODE_LIKE = /^\d{8,14}$/;
             </dl>
 
             <div class="mt-4 space-y-2">
+              <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cliente (opcional)</p>
+              <input
+                type="search"
+                class="input-brand w-full"
+                placeholder="Buscar cliente para cuenta corriente o Factura A"
+                [value]="saleCustomerQuery()"
+                (input)="onSaleCustomerQuery($event)"
+              />
+              @if (saleCustomerSuggestions().length > 0) {
+                <ul class="max-h-32 overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 text-xs">
+                  @for (c of saleCustomerSuggestions(); track c.id) {
+                    <li>
+                      <button
+                        type="button"
+                        class="block w-full px-2 py-1.5 text-left hover:bg-slate-800"
+                        (click)="selectSaleCustomer(c)"
+                      >
+                        <span class="font-medium text-slate-100">{{ c.name }}</span>
+                        <span class="ml-1 text-slate-500">{{ c.taxId }}</span>
+                      </button>
+                    </li>
+                  }
+                </ul>
+              }
+              @if (saleCustomer(); as sc) {
+                <p class="text-xs text-slate-400">
+                  Seleccionado:
+                  <span class="font-medium text-slate-200">{{ sc.name }}</span>
+                  <button type="button" class="ml-2 text-brand-400 underline" (click)="clearSaleCustomer()">
+                    Quitar
+                  </button>
+                </p>
+              }
+            </div>
+
+            <div class="mt-4 space-y-2">
               <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Cobro</p>
-              <div class="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <div class="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
                 @for (opt of paymentOptions; track opt.value) {
                   <button
                     type="button"
@@ -125,12 +161,42 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                     [class.text-slate-100]="payMode() === opt.value"
                     [class.border-slate-700]="payMode() !== opt.value"
                     [class.text-slate-400]="payMode() !== opt.value"
-                    (click)="payMode.set(opt.value)"
+                    (click)="setPayMode(opt.value)"
                   >
                     {{ opt.label }}
                   </button>
                 }
               </div>
+              @if (payMode() === 'credit' && !saleCustomer()) {
+                <p class="text-xs text-amber-200">Seleccione un cliente para vender a cuenta corriente.</p>
+              }
+              @if (payMode() === 'cash') {
+                <div>
+                  <label class="text-xs text-slate-500" for="cashTendered">Monto recibido</label>
+                  <input
+                    id="cashTendered"
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    class="input-brand mt-1 w-full"
+                    [value]="cashTendered()"
+                    (input)="onCashTendered($event)"
+                  />
+                  @if (cashChange() > 0) {
+                    <p class="mt-1 text-sm font-medium text-emerald-300">
+                      Vuelto: {{ cashChange() | number: '1.2-2' }}
+                    </p>
+                  } @else if (cashTendered() > 0 && cashTendered() < roundMoney(total())) {
+                    <p class="mt-1 text-xs text-amber-200">
+                      Falta {{ (roundMoney(total()) - cashTendered()) | number: '1.2-2' }}
+                    </p>
+                  } @else {
+                    <p class="mt-1 text-xs text-slate-500">
+                      Se registra el total de la venta; el vuelto es solo visual.
+                    </p>
+                  }
+                </div>
+              }
               @if (payMode() === 'split') {
                 <div>
                   <label class="text-xs text-slate-500" for="cashPart">Efectivo</label>
@@ -146,6 +212,11 @@ const BARCODE_LIKE = /^\d{8,14}$/;
                   <p class="mt-1 text-xs text-slate-500">
                     Tarjeta: {{ splitCardAmount() | number: '1.2-2' }}
                   </p>
+                  @if (!paymentsValid() && items().length > 0) {
+                    <p class="mt-1 text-xs text-amber-200">
+                      El efectivo debe ser mayor a 0 y menor al total.
+                    </p>
+                  }
                 </div>
               }
             </div>
@@ -153,11 +224,14 @@ const BARCODE_LIKE = /^\d{8,14}$/;
             <button
               type="button"
               class="btn-primary mt-4 w-full"
-              [disabled]="items().length === 0 || saleService.saving() || !paymentsValid()"
+              [disabled]="!canConfirmSale()"
               (click)="confirmSale()"
             >
               @if (saleService.saving()) { Registrando... } @else { Confirmar venta }
             </button>
+            @if (paymentHint()) {
+              <p class="mt-2 text-xs text-amber-200/90">{{ paymentHint() }}</p>
+            }
             @if (saleError()) {
               <p class="mt-3 text-sm text-rose-300">{{ saleError() }}</p>
             }
@@ -370,26 +444,82 @@ export class SaleComponent implements OnInit {
 
   readonly payMode = signal<PayMode>('cash');
   readonly splitCashAmount = signal(0);
+  /** Monto recibido en efectivo (solo UI); el payment enviado al API es el total. */
+  readonly cashTendered = signal(0);
   readonly paymentOptions: ReadonlyArray<{ value: PayMode; label: string }> = [
     { value: 'cash', label: 'Efectivo' },
     { value: 'card', label: 'Tarjeta' },
     { value: 'transfer', label: 'Transfer.' },
-    { value: 'split', label: 'Mixto' }
+    { value: 'split', label: 'Mixto' },
+    { value: 'credit', label: 'Cta. cte.' }
   ];
 
+  readonly saleCustomer = signal<Customer | null>(null);
+  readonly saleCustomerQuery = signal('');
+  readonly saleCustomerSuggestions = signal<readonly Customer[]>([]);
+  private saleCustomerSearchSeq = 0;
+
   readonly splitCardAmount = computed(() => {
-    const total = Math.round(this.total() * 100) / 100;
-    const cash = Math.round(this.splitCashAmount() * 100) / 100;
-    return Math.round((total - cash) * 100) / 100;
+    const total = this.roundMoney(this.total());
+    const cash = this.roundMoney(this.splitCashAmount());
+    return this.roundMoney(total - cash);
+  });
+
+  readonly cashChange = computed(() => {
+    if (this.payMode() !== 'cash') {
+      return 0;
+    }
+    const total = this.roundMoney(this.total());
+    const tendered = this.roundMoney(this.cashTendered());
+    return tendered > total ? this.roundMoney(tendered - total) : 0;
   });
 
   readonly paymentsValid = computed(() => {
-    if (this.payMode() !== 'split') {
-      return this.total() > 0;
+    const total = this.roundMoney(this.total());
+    if (total <= 0) {
+      return false;
     }
-    const cash = this.splitCashAmount();
-    const card = this.splitCardAmount();
-    return cash > 0 && card > 0;
+    const mode = this.payMode();
+    if (mode === 'cash') {
+      const tendered = this.roundMoney(this.cashTendered());
+      // Vacío o 0 → se asume exacto; si cargaron monto, debe cubrir el total.
+      return tendered === 0 || tendered >= total;
+    }
+    if (mode === 'split') {
+      const cash = this.roundMoney(this.splitCashAmount());
+      const card = this.splitCardAmount();
+      return cash > 0 && card > 0;
+    }
+    if (mode === 'credit') {
+      return this.saleCustomer() !== null;
+    }
+    return true;
+  });
+
+  readonly canConfirmSale = computed(
+    () =>
+      this.items().length > 0 &&
+      !this.saleService.saving() &&
+      this.paymentsValid()
+  );
+
+  readonly paymentHint = computed(() => {
+    if (this.items().length === 0) {
+      return 'Agregue productos al carrito para cobrar.';
+    }
+    if (this.paymentsValid()) {
+      return null;
+    }
+    if (this.payMode() === 'cash') {
+      return 'El monto recibido debe ser igual o mayor al total.';
+    }
+    if (this.payMode() === 'split') {
+      return 'En cobro mixto, indique un efectivo parcial (mayor a 0 y menor al total).';
+    }
+    if (this.payMode() === 'credit') {
+      return 'Cuenta corriente requiere un cliente seleccionado.';
+    }
+    return 'Revise el cobro antes de confirmar.';
   });
 
   readonly fiscalStatusLabel = fiscalStatusLabel;
@@ -617,7 +747,16 @@ export class SaleComponent implements OnInit {
       this.saleError.set('Indique un cobro válido.');
       return;
     }
-    const result = await this.saleService.createAndRefreshProducts({ lines, payments });
+    const customerId = this.saleCustomer()?.id ?? null;
+    if (this.payMode() === 'credit' && !customerId) {
+      this.saleError.set('Seleccione un cliente para cuenta corriente.');
+      return;
+    }
+    const result = await this.saleService.createAndRefreshProducts({
+      lines,
+      payments,
+      customerId
+    });
     if (result.success && result.data) {
       this.lastSaleId.set(result.data.id);
       this.lastTicketDetail.set(
@@ -630,9 +769,23 @@ export class SaleComponent implements OnInit {
       this.searchText.set('');
       this.payMode.set('cash');
       this.splitCashAmount.set(0);
+      this.cashTendered.set(0);
     } else {
       this.saleError.set(result.error?.message ?? 'No se pudo registrar la venta.');
     }
+  }
+
+  setPayMode(mode: PayMode): void {
+    this.payMode.set(mode);
+    this.saleError.set(null);
+    if (mode === 'cash' && this.cashTendered() === 0) {
+      this.cashTendered.set(this.roundMoney(this.total()));
+    }
+  }
+
+  onCashTendered(e: Event): void {
+    const v = Number((e.target as HTMLInputElement).value);
+    this.cashTendered.set(Number.isFinite(v) ? v : 0);
   }
 
   onSplitCash(e: Event): void {
@@ -640,13 +793,18 @@ export class SaleComponent implements OnInit {
     this.splitCashAmount.set(Number.isFinite(v) ? v : 0);
   }
 
+  roundMoney(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
   private buildPayments(): CreateSalePaymentDto[] {
-    const total = Math.round(this.total() * 100) / 100;
+    const total = this.roundMoney(this.total());
     if (total <= 0) {
       return [];
     }
     const mode = this.payMode();
     if (mode === 'cash') {
+      // Invariante backend: Sum(payments) == TotalAmount. El vuelto es solo UI.
       return [{ method: PAYMENT_METHOD.Cash, amount: total }];
     }
     if (mode === 'card') {
@@ -655,8 +813,11 @@ export class SaleComponent implements OnInit {
     if (mode === 'transfer') {
       return [{ method: PAYMENT_METHOD.Transfer, amount: total }];
     }
-    const cash = Math.round(this.splitCashAmount() * 100) / 100;
-    const card = Math.round((total - cash) * 100) / 100;
+    if (mode === 'credit') {
+      return [{ method: PAYMENT_METHOD.Credit, amount: total }];
+    }
+    const cash = this.roundMoney(this.splitCashAmount());
+    const card = this.roundMoney(total - cash);
     if (cash <= 0 || card <= 0) {
       return [];
     }
@@ -664,6 +825,48 @@ export class SaleComponent implements OnInit {
       { method: PAYMENT_METHOD.Cash, amount: cash },
       { method: PAYMENT_METHOD.Card, amount: card }
     ];
+  }
+
+  onSaleCustomerQuery(e: Event): void {
+    const q = (e.target as HTMLInputElement).value;
+    this.saleCustomerQuery.set(q);
+    void this.searchSaleCustomers(q);
+  }
+
+  selectSaleCustomer(c: Customer): void {
+    this.saleCustomer.set(c);
+    this.saleCustomerQuery.set(`${c.name} (${c.taxId})`);
+    this.saleCustomerSuggestions.set([]);
+    // Reutilizar selección para Factura A post-venta.
+    this.selectedCustomerId.set(c.id);
+    this.buyerTaxId.set(c.taxId);
+    this.buyerName.set(c.name);
+  }
+
+  clearSaleCustomer(): void {
+    this.saleCustomer.set(null);
+    this.saleCustomerQuery.set('');
+    this.saleCustomerSuggestions.set([]);
+  }
+
+  private async searchSaleCustomers(q: string): Promise<void> {
+    const term = q.trim();
+    if (term.length < 2) {
+      this.saleCustomerSuggestions.set([]);
+      return;
+    }
+    const seq = ++this.saleCustomerSearchSeq;
+    try {
+      const rows = await firstValueFrom(this.customerService.getAll(term));
+      if (seq !== this.saleCustomerSearchSeq) {
+        return;
+      }
+      this.saleCustomerSuggestions.set(rows.slice(0, 8));
+    } catch {
+      if (seq === this.saleCustomerSearchSeq) {
+        this.saleCustomerSuggestions.set([]);
+      }
+    }
   }
 
   async issueFacturaB(): Promise<void> {

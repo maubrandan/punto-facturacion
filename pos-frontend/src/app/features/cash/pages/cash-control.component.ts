@@ -76,12 +76,21 @@ import { ExpenseCategory } from '../../../core/models/cash.model';
                   </dd>
                 </div>
                 <div class="flex justify-between gap-2">
-                  <dt class="text-slate-500">Tarjeta / transfer.</dt>
+                  <dt class="text-slate-500">Tarjeta</dt>
                   <dd class="font-medium text-slate-300">
-                    {{
-                      summary()!.totalCardPayments + summary()!.totalTransferPayments
-                        | number: '1.2-2'
-                    }}
+                    {{ summary()!.totalCardPayments | number: '1.2-2' }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-slate-500">Transferencia</dt>
+                  <dd class="font-medium text-slate-300">
+                    {{ summary()!.totalTransferPayments | number: '1.2-2' }}
+                  </dd>
+                </div>
+                <div class="flex justify-between gap-2">
+                  <dt class="text-slate-500">Cuenta corriente</dt>
+                  <dd class="font-medium text-slate-300">
+                    {{ summary()!.totalCreditPayments | number: '1.2-2' }}
                   </dd>
                 </div>
                 <div class="flex justify-between gap-2">

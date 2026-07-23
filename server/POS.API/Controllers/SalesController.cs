@@ -50,6 +50,21 @@ public sealed class SalesController : ControllerBase
             ApiResponse<DailySummaryResponse>.FromResult(Result<DailySummaryResponse>.Ok(summary)));
     }
 
+    /// <summary>
+    /// Reporte de ventas por rango (UTC, inclusive por día): totales, breakdown por medio de pago y por cajero.
+    /// Sin fechas → hoy (UTC). Solo <c>startDate</c> o <c>endDate</c> → ese día.
+    /// </summary>
+    [HttpGet("report")]
+    [ProducesResponseType(typeof(ApiResponse<SalesReportResponse>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReport(
+        [FromQuery] DateTime? startDate,
+        [FromQuery] DateTime? endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var report = await _salesQuery.GetSalesReportAsync(startDate, endDate, cancellationToken);
+        return Ok(ApiResponse<SalesReportResponse>.FromResult(Result<SalesReportResponse>.Ok(report)));
+    }
+
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ApiResponse<SaleDetailViewResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ApiResponse<SaleDetailViewResponse>), StatusCodes.Status404NotFound)]
@@ -79,7 +94,8 @@ public sealed class SalesController : ControllerBase
                 .ToList(),
             (request.Payments ?? Array.Empty<CreateSalePaymentRequest>())
                 .Select(p => new CreateSalePaymentCommand(p.Method, p.Amount))
-                .ToList());
+                .ToList(),
+            request.CustomerId);
 
         var result = await _createSaleHandler.HandleAsync(command, cancellationToken);
         var body = ApiResponse<SaleResponse>.FromResult(result);

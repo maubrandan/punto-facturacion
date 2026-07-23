@@ -192,4 +192,76 @@ public sealed class SalesQueryService : ISalesQueryService
             TopProductUnits = top.Units
         };
     }
+
+    public async Task<SalesReportResponse> GetSalesReportAsync(
+        DateTime? startDate,
+        DateTime? endDate,
+        CancellationToken cancellationToken = default)
+    {
+        var today = DateTime.UtcNow.Date;
+        var startDay = (startDate ?? endDate ?? today).Date;
+        var endDay = (endDate ?? startDate ?? today).Date;
+        if (endDay < startDay)
+            (startDay, endDay) = (endDay, startDay);
+
+        var start = DateTime.SpecifyKind(startDay, DateTimeKind.Utc);
+        var endExclusive = DateTime.SpecifyKind(endDay, DateTimeKind.Utc).AddDays(1);
+
+        var salesQ = _db.Sales.AsNoTracking().Where(s => s.Date >= start && s.Date < endExclusive);
+
+        var totalSalesAmount = await salesQ.SumAsync(s => (decimal?)s.TotalAmount, cancellationToken) ?? 0m;
+        var salesCount = await salesQ.CountAsync(cancellationToken);
+
+        var byPayment = await (
+                from p in _db.SalePayments.AsNoTracking()
+                join s in _db.Sales.AsNoTracking() on p.SaleId equals s.Id
+                where s.Date >= start && s.Date < endExclusive
+                group p by p.Method
+                into g
+                select new SalesReportPaymentBreakdownItem
+                {
+                    Method = (int)g.Key,
+                    Amount = g.Sum(x => x.Amount),
+                    PaymentCount = g.Count()
+                })
+            .OrderBy(x => x.Method)
+            .ToListAsync(cancellationToken);
+
+        var byCashierRaw = await salesQ
+            .GroupBy(s => new { s.CreatedByUserId, s.CreatedByUserName })
+            .Select(
+                g => new
+                {
+                    g.Key.CreatedByUserId,
+                    g.Key.CreatedByUserName,
+                    TotalAmount = g.Sum(x => x.TotalAmount),
+                    SalesCount = g.Count()
+                })
+            .OrderByDescending(x => x.TotalAmount)
+            .ThenBy(x => x.CreatedByUserName)
+            .ToListAsync(cancellationToken);
+
+        var byCashier = byCashierRaw
+            .Select(
+                x => new SalesReportCashierBreakdownItem
+                {
+                    CreatedByUserId = x.CreatedByUserId,
+                    CreatedByUserName = string.IsNullOrWhiteSpace(x.CreatedByUserName)
+                        ? "—"
+                        : x.CreatedByUserName!,
+                    TotalAmount = x.TotalAmount,
+                    SalesCount = x.SalesCount
+                })
+            .ToList();
+
+        return new SalesReportResponse
+        {
+            StartDate = start,
+            EndDate = DateTime.SpecifyKind(endDay, DateTimeKind.Utc),
+            TotalSalesAmount = totalSalesAmount,
+            SalesCount = salesCount,
+            ByPaymentMethod = byPayment,
+            ByCashier = byCashier
+        };
+    }
 }

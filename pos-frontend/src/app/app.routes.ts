@@ -122,7 +122,7 @@ export const routes: Routes = [
       },
       {
         path: 'clientes',
-        canActivate: [tenantAdminGuard],
+        canActivate: [tenantCashierOrAdminGuard],
         loadComponent: () =>
           import('./features/customers/pages/customers-page.component').then(
             (m) => m.CustomersPageComponent

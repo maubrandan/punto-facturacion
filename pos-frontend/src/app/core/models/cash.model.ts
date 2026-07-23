@@ -6,6 +6,7 @@ export interface CashSessionSummary {
   totalCashPayments: number;
   totalCardPayments: number;
   totalTransferPayments: number;
+  totalCreditPayments: number;
   totalPurchases: number;
   totalExpenses: number;
   projectedAmount: number;

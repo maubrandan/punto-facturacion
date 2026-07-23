@@ -5,7 +5,12 @@ import { firstValueFrom } from 'rxjs';
 import { finalize } from 'rxjs/operators';
 import { AuthService } from '../../../core/services/auth.service';
 import { ProductService } from '../../../core/services/product.service';
-import { DailySummaryResult, SaleService } from '../../../core/services/sale.service';
+import { paymentMethodLabel } from '../../../core/models/payment.model';
+import {
+  DailySummaryResult,
+  SaleService,
+  SalesReportResult
+} from '../../../core/services/sale.service';
 import {
   ProductFormComponent,
   ProductFormPayload
@@ -73,6 +78,59 @@ import { LowStockWidget } from '../components/low-stock.widget';
                 </dd>
               </div>
             </dl>
+          }
+
+          @if (salesReport(); as r) {
+            <div class="mt-4 grid gap-4 lg:grid-cols-2">
+              <div>
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Por medio de pago
+                </h3>
+                @if (r.byPaymentMethod.length === 0) {
+                  <p class="text-sm text-slate-500">Sin cobros hoy.</p>
+                } @else {
+                  <dl class="space-y-2 text-sm">
+                    @for (row of r.byPaymentMethod; track row.method) {
+                      <div
+                        class="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/50 px-3 py-2"
+                      >
+                        <dt class="text-slate-400">
+                          {{ paymentLabel(row.method) }}
+                          <span class="ml-1 text-xs text-slate-600">({{ row.paymentCount }})</span>
+                        </dt>
+                        <dd class="font-semibold text-slate-100">
+                          {{ row.amount | number: '1.2-2' }}
+                        </dd>
+                      </div>
+                    }
+                  </dl>
+                }
+              </div>
+              <div>
+                <h3 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Por cajero
+                </h3>
+                @if (r.byCashier.length === 0) {
+                  <p class="text-sm text-slate-500">Sin ventas hoy.</p>
+                } @else {
+                  <dl class="space-y-2 text-sm">
+                    @for (row of r.byCashier; track row.createdByUserId ?? row.createdByUserName) {
+                      <div
+                        class="flex items-center justify-between rounded-lg border border-slate-800/80 bg-slate-900/50 px-3 py-2"
+                      >
+                        <dt class="text-slate-400">
+                          {{ row.createdByUserName }}
+                          <span class="ml-1 text-xs text-slate-600">({{ row.salesCount }})</span>
+                        </dt>
+                        <dd class="font-semibold text-slate-100">
+                          {{ row.totalAmount | number: '1.2-2' }}
+                        </dd>
+                      </div>
+                    }
+                  </dl>
+                }
+              </div>
+            </div>
           }
         </div>
 
@@ -174,6 +232,7 @@ export class DashboardComponent {
   readonly requestError = signal<string | null>(null);
   readonly summaryError = signal<string | null>(null);
   readonly dailySummary = signal<DailySummaryResult | null>(null);
+  readonly salesReport = signal<SalesReportResult | null>(null);
 
   readonly businessType = computed(() => this.authService.currentUser()?.businessType ?? 'kiosco');
   readonly products = this.productService.products;
@@ -183,17 +242,26 @@ export class DashboardComponent {
     void this.reloadDailySummary();
   }
 
+  paymentLabel(method: number): string {
+    return paymentMethodLabel(method);
+  }
+
   async reloadDailySummary(): Promise<void> {
     this.loadingSummary.set(true);
     this.summaryError.set(null);
     try {
-      const s = await firstValueFrom(this.saleService.getDailySummary());
+      const [s, report] = await Promise.all([
+        firstValueFrom(this.saleService.getDailySummary()),
+        firstValueFrom(this.saleService.getSalesReport())
+      ]);
       this.dailySummary.set(s);
+      this.salesReport.set(report);
     } catch (e) {
       this.summaryError.set(
         e instanceof Error ? e.message : 'No se pudo cargar el resumen de ventas.'
       );
       this.dailySummary.set(null);
+      this.salesReport.set(null);
     } finally {
       this.loadingSummary.set(false);
     }

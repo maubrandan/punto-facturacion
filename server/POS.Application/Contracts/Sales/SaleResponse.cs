@@ -42,6 +42,8 @@ public sealed class SaleResponse
 
     public decimal TotalAmount { get; init; }
 
+    public Guid? CustomerId { get; init; }
+
     public IReadOnlyList<SaleLineResponse> Lines { get; init; } = Array.Empty<SaleLineResponse>();
 
     public IReadOnlyList<SalePaymentResponse> Payments { get; init; } = Array.Empty<SalePaymentResponse>();

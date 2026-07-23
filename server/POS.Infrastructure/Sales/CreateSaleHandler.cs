@@ -64,6 +64,14 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
             }
         }
 
+        var usesCredit = command.Payments.Any(p => (PaymentMethod)p.Method == PaymentMethod.Credit);
+        if (usesCredit && command.CustomerId is null)
+        {
+            return Result<SaleResponse>.Failure(
+                "sale.customer_required",
+                "Debe indicar un cliente para ventas en cuenta corriente.");
+        }
+
         var policy = await _policyFactory.ForCurrentTenantAsync(cancellationToken);
         foreach (var line in command.Lines)
         {
@@ -118,8 +126,8 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
         try
         {
             var currentUserId = _currentUser.UserId;
-            string? createdByUserId = null;
-            var createdByUserName = "—";
+            string? createdByUserId = string.IsNullOrWhiteSpace(currentUserId) ? null : currentUserId;
+            var createdByUserName = createdByUserId ?? "—";
             if (!string.IsNullOrEmpty(currentUserId) && !string.IsNullOrEmpty(tenantId))
             {
                 var appUser = await _db
@@ -132,9 +140,33 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                 {
                     createdByUserId = appUser.Id;
                     createdByUserName = string.IsNullOrWhiteSpace(appUser.FullName)
-                        ? (appUser.Email ?? appUser.UserName ?? "—")
+                        ? (appUser.Email ?? appUser.UserName ?? createdByUserName)
                         : appUser.FullName;
                 }
+            }
+
+            Guid? customerId = null;
+            if (command.CustomerId is { } requestedCustomerId)
+            {
+                var customerExists = await _db.Customers
+                    .AsNoTracking()
+                    .AnyAsync(c => c.Id == requestedCustomerId && c.TenantId == tenantId, cancellationToken);
+                if (!customerExists)
+                {
+                    await transaction.RollbackAsync(cancellationToken);
+                    return Result<SaleResponse>.Failure(
+                        "sale.invalid_customer",
+                        "El cliente no existe o no pertenece a este comercio.");
+                }
+
+                customerId = requestedCustomerId;
+            }
+            else if (usesCredit)
+            {
+                await transaction.RollbackAsync(cancellationToken);
+                return Result<SaleResponse>.Failure(
+                    "sale.customer_required",
+                    "Debe indicar un cliente para ventas en cuenta corriente.");
             }
 
             var sale = new Sale
@@ -147,7 +179,8 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                 CreatedAt = now,
                 CreatedByUserId = createdByUserId,
                 CreatedByUserName = createdByUserName,
-                CashSessionId = cashSessionId
+                CashSessionId = cashSessionId,
+                CustomerId = customerId
             };
 
             foreach (var (productId, stockLotId, quantity) in merged)
@@ -236,6 +269,7 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
             }
 
             var paymentResponses = new List<SalePaymentResponse>();
+            var creditCharges = new List<decimal>();
             foreach (var payment in command.Payments)
             {
                 var paymentId = Guid.NewGuid();
@@ -257,9 +291,49 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                         Method = (int)method,
                         Amount = amount
                     });
+
+                if (method == PaymentMethod.Credit)
+                    creditCharges.Add(amount);
             }
 
             _db.Sales.Add(sale);
+
+            if (creditCharges.Count > 0)
+            {
+                // customerId is guaranteed when usesCredit (validated above).
+                var resolvedCustomerId = customerId!.Value;
+                var previousBalance = await _db.CustomerAccountMovements
+                    .Where(m => m.CustomerId == resolvedCustomerId)
+                    .OrderByDescending(m => m.CreatedAt)
+                    .ThenByDescending(m => m.Id)
+                    .Select(m => (decimal?)m.BalanceAfter)
+                    .FirstOrDefaultAsync(cancellationToken) ?? 0m;
+
+                var runningBalance = previousBalance;
+                foreach (var amount in creditCharges)
+                {
+                    runningBalance = decimal.Round(
+                        runningBalance + amount,
+                        2,
+                        MidpointRounding.AwayFromZero);
+                    _db.CustomerAccountMovements.Add(
+                        new CustomerAccountMovement
+                        {
+                            Id = Guid.NewGuid(),
+                            CustomerId = resolvedCustomerId,
+                            Type = CustomerAccountMovementType.Charge,
+                            Amount = amount,
+                            BalanceAfter = runningBalance,
+                            SaleId = saleId,
+                            Notes = null,
+                            SettlementMethod = null,
+                            CashSessionId = null,
+                            CreatedByUserId = createdByUserId,
+                            CreatedAt = now
+                        });
+                }
+            }
+
             await _db.SaveChangesAsync(cancellationToken);
             await transaction.CommitAsync(cancellationToken);
 
@@ -271,6 +345,7 @@ public sealed class CreateSaleHandler : ICreateSaleHandler
                     TotalNet = totalNet,
                     TotalTax = totalTax,
                     TotalAmount = sale.TotalAmount,
+                    CustomerId = customerId,
                     Lines = lineResponses,
                     Payments = paymentResponses
                 });

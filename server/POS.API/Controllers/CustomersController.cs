@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using POS.Application.Common;
 using POS.Application.Contracts;
 using POS.Application.Contracts.Customers;
+using POS.Application.Interfaces;
 using POS.Application.Platform;
 using POS.Domain.Entities;
 using POS.Infrastructure.Persistence;
@@ -16,8 +17,18 @@ namespace POS.API.Controllers;
 public sealed class CustomersController : ControllerBase
 {
     private readonly ApplicationDbContext _db;
+    private readonly ICustomerAccountQueryService _accountQuery;
+    private readonly IRegisterCustomerAccountPaymentHandler _registerPayment;
 
-    public CustomersController(ApplicationDbContext db) => _db = db;
+    public CustomersController(
+        ApplicationDbContext db,
+        ICustomerAccountQueryService accountQuery,
+        IRegisterCustomerAccountPaymentHandler registerPayment)
+    {
+        _db = db;
+        _accountQuery = accountQuery;
+        _registerPayment = registerPayment;
+    }
 
     /// <summary>Listado / búsqueda (cajero y admin para Factura A).</summary>
     [HttpGet]
@@ -64,6 +75,57 @@ public sealed class CustomersController : ControllerBase
         return Ok(
             ApiResponse<CustomerResponse>.FromResult(
                 Result<CustomerResponse>.Ok(CustomerResponse.FromEntity(entity))));
+    }
+
+    /// <summary>Saldo de cuenta corriente y movimientos recientes.</summary>
+    [HttpGet("{id:guid}/account")]
+    [Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<CustomerAccountResponse>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<CustomerAccountResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAccount(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _accountQuery.GetAccountAsync(id, cancellationToken: cancellationToken);
+        var body = ApiResponse<CustomerAccountResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return NotFound(body);
+        return Ok(body);
+    }
+
+    /// <summary>Historial de movimientos de cuenta corriente.</summary>
+    [HttpGet("{id:guid}/movements")]
+    [Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CustomerAccountMovementResponse>>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<CustomerAccountMovementResponse>>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetMovements(Guid id, CancellationToken cancellationToken)
+    {
+        var result = await _accountQuery.ListMovementsAsync(id, cancellationToken);
+        var body = ApiResponse<IReadOnlyList<CustomerAccountMovementResponse>>.FromResult(result);
+        if (!result.IsSuccess)
+            return NotFound(body);
+        return Ok(body);
+    }
+
+    /// <summary>Registra un cobro / pago de deuda en cuenta corriente.</summary>
+    [HttpPost("{id:guid}/account/payments")]
+    [Authorize(Policy = AuthorizationPolicies.TenantCashierOrAdmin)]
+    [ProducesResponseType(typeof(ApiResponse<RegisterCustomerAccountPaymentResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<RegisterCustomerAccountPaymentResponse>), StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(typeof(ApiResponse<RegisterCustomerAccountPaymentResponse>), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> RegisterPayment(
+        Guid id,
+        [FromBody] RegisterCustomerAccountPaymentRequest request,
+        CancellationToken cancellationToken)
+    {
+        var result = await _registerPayment.HandleAsync(id, request, cancellationToken);
+        var body = ApiResponse<RegisterCustomerAccountPaymentResponse>.FromResult(result);
+        if (!result.IsSuccess)
+        {
+            if (result.ErrorCode == "customer.not_found")
+                return NotFound(body);
+            return BadRequest(body);
+        }
+
+        return StatusCode(StatusCodes.Status201Created, body);
     }
 
     [HttpPost]
