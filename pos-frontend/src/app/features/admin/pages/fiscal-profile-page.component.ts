@@ -116,7 +116,7 @@ import { FiscalService } from '../../../core/services/fiscal.service';
       </form>
 
       <div class="card-dashboard space-y-2 text-sm text-slate-400">
-        <p>
+        <!--<p>
           En desarrollo, <span class="text-slate-300">SandboxAutoApprove</span> autoriza comprobantes sin AFIP.
           Para homologación/producción: marque <span class="text-slate-300">Ambiente producción</span> en el perfil,
           configure <span class="text-slate-300">Arca:EnableDirectAfip=true</span> y apunte el certificado
@@ -127,7 +127,7 @@ import { FiscalService } from '../../../core/services/fiscal.service';
           Producción: <span class="text-slate-300">wsaa.afip.gov.ar</span> y
           <span class="text-slate-300">servicios1.afip.gov.ar/wsfev1</span>.
         </p>
-      </div>
+      </div>-->
     </section>
   `
 })

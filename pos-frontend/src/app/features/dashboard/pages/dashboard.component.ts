@@ -21,7 +21,7 @@ import { LowStockWidget } from '../components/low-stock.widget';
         <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
             <h1 class="heading-brand card-header-accent text-2xl font-bold">Dashboard</h1>
-            <p class="mt-1 text-sm text-slate-400">Panel protegido por autenticación.</p>
+            <p class="mt-1 text-sm text-slate-400">Panel principal de tu negocio.</p>
           </div>
           <div class="flex flex-wrap items-center gap-2">
             <a routerLink="/productos" class="btn-secondary">Productos</a>
@@ -139,9 +139,9 @@ import { LowStockWidget } from '../components/low-stock.widget';
       <div class="card-dashboard">
         <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Catálogo</h2>
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-300">Gestión de productos</h2>
             <p class="mt-1 text-sm text-slate-500">
-              La gestión de productos se movió a una pantalla dedicada.
+              Aquí puedes gestionar tus productos y categorías.
             </p>
           </div>
           <a routerLink="/productos" class="btn-secondary shrink-0">Ir a productos</a>

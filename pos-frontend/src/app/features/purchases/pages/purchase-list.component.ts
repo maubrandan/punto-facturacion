@@ -15,7 +15,7 @@ import { PurchaseSummary } from '../../../core/models/purchase.model';
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 class="heading-brand card-header-accent text-2xl font-bold">Compras</h1>
-            <p class="mt-1 text-sm text-slate-400">Entrada de mercadería y relación con proveedores.</p>
+            <p class="mt-1 text-sm text-slate-400">Aquí puedes registrar tus compras y gestionar tus proveedores.</p>
           </div>
           <div class="flex flex-wrap gap-2">
             <a routerLink="/compras/nueva" class="btn-primary">Registrar compra</a>

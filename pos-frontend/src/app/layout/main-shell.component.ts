@@ -31,8 +31,8 @@ interface NavItem {
     >
       <div class="mx-auto grid max-w-[1500px] gap-3 lg:grid-cols-[220px_minmax(0,1fr)]">
         <aside class="card-dashboard h-fit lg:sticky lg:top-4">
-          <h1 class="heading-brand card-header-accent text-xl font-bold">Punto Facturacion</h1>
-          <p class="mt-1 text-xs text-slate-400">Navegacion principal</p>
+          <h1 class="heading-brand card-header-accent text-xl font-bold">Punto de venta</h1>
+          <p class="mt-1 text-xs text-slate-400">Navegacion principal de tu negocio.</p>
 
           <nav class="mt-4 space-y-1.5">
             @for (item of navItems(); track item.link) {

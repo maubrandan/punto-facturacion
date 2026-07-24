@@ -20,7 +20,7 @@ import {
           <div>
             <h1 class="heading-brand card-header-accent text-2xl font-bold">Productos</h1>
             <p class="mt-1 text-sm text-slate-400">
-              Alta, edición y baja del catálogo. Los campos del rubro se adaptan al negocio.
+              Aquí puedes gestionar tus productos y sus categorías.
             </p>
           </div>
           <div class="flex flex-wrap items-center gap-2">

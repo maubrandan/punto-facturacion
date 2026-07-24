@@ -14,7 +14,7 @@ import { ProviderService } from '../../../core/services/provider.service';
         <div class="flex flex-wrap items-center justify-between gap-4">
           <div>
             <h1 class="heading-brand card-header-accent text-2xl font-bold">Proveedores</h1>
-            <p class="mt-1 text-sm text-slate-400">Datos fiscales y de contacto por tenant.</p>
+            <p class="mt-1 text-sm text-slate-400">Aquí puedes gestionar tus proveedores y sus datos fiscales y de contacto.</p>
           </div>
           <a routerLink="/compras" class="btn-secondary">Compras</a>
         </div>

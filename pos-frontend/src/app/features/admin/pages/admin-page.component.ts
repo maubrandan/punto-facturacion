@@ -37,7 +37,7 @@ const PLAN_OPTIONS: ReadonlyArray<TenantPlanCode> = ['Starter', 'Pro', 'Unlimite
           <div>
             <h1 class="heading-brand card-header-accent text-2xl font-bold">Administración</h1>
             <p class="mt-1 text-sm text-slate-400">
-              Datos de tu negocio y accesos a operaciones que suelen gestionar dueños o encargados.
+              Aquí puedes gestionar tus usuarios, roles, facturas y otros datos de tu negocio.
             </p>
           </div>
           <a routerLink="/dashboard" class="btn-secondary-sm">← Volver al panel</a>
@@ -59,7 +59,7 @@ const PLAN_OPTIONS: ReadonlyArray<TenantPlanCode> = ['Starter', 'Pro', 'Unlimite
             }
           </div>
 
-          <div class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+          <!--<div class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
             <label class="block text-sm">
               <span class="mb-1 block text-xs text-slate-500">Cambiar a (solo upgrade)</span>
               <select
@@ -89,7 +89,7 @@ const PLAN_OPTIONS: ReadonlyArray<TenantPlanCode> = ['Starter', 'Pro', 'Unlimite
             >
               {{ upgrading() ? 'Procesando…' : 'Actualizar plan' }}
             </button>
-          </div>
+          </div>-->
           @if (upgradeMessage()) {
             <p class="text-xs text-emerald-300/90">{{ upgradeMessage() }}</p>
           }
