@@ -29,6 +29,8 @@ public sealed class CashSession : ITenantEntity
 
     public ICollection<Sale> Sales { get; set; } = new List<Sale>();
 
+    public ICollection<SaleReturn> SaleReturns { get; set; } = new List<SaleReturn>();
+
     public ICollection<Purchase> Purchases { get; set; } = new List<Purchase>();
 
     public ICollection<Expense> Expenses { get; set; } = new List<Expense>();

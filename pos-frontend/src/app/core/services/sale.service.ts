@@ -74,6 +74,32 @@ export interface SaleDetailView {
   lines: SaleDetailLineView[];
   payments: SalePaymentView[];
   fiscalDocuments?: FiscalDocumentView[];
+  /** 0 = None, 1 = FullyReturned */
+  returnStatus?: number;
+  return?: SaleReturnView | null;
+}
+
+export interface SaleReturnLineView {
+  id: string;
+  saleDetailId: string;
+  productId: string;
+  productName: string;
+  quantity: number;
+  stockLotId?: string | null;
+  lineNetSubtotal: number;
+  lineTaxAmount: number;
+}
+
+export interface SaleReturnView {
+  id: string;
+  saleId: string;
+  returnedAt: string;
+  totalAmount: number;
+  createdByUserName: string | null;
+  cashSessionId?: string | null;
+  fiscalDocumentId?: string | null;
+  lines: SaleReturnLineView[];
+  payments: SalePaymentView[];
 }
 
 export interface SalePaymentView {
@@ -198,6 +224,8 @@ export function saleResponseToDetailView(
     totalAmount: s.totalAmount,
     createdByUserName,
     fiscalDocuments: [],
+    returnStatus: 0,
+    return: null,
     payments: s.payments ?? [],
     lines: s.lines.map((l) => ({
       id: l.id,
@@ -253,6 +281,28 @@ export class SaleService {
         finalize(() => this.saving.set(false))
       )
     ).catch((error: unknown) => this.toHttpErrorResult<SaleResponse>(error));
+  }
+
+  createReturn(saleId: string): Promise<RequestResult<SaleReturnView>> {
+    this.saving.set(true);
+    return firstValueFrom(
+      this.http
+        .post<ApiResponse<SaleReturnView>>(`${this.apiBaseUrl}/${saleId}/returns`, {})
+        .pipe(
+          map((response) => {
+            if (!response.success || response.data === null) {
+              return this.toFailureResult<SaleReturnView>(400, response.error);
+            }
+            return {
+              success: true,
+              data: response.data,
+              error: null,
+              status: 201
+            } as RequestResult<SaleReturnView>;
+          }),
+          finalize(() => this.saving.set(false))
+        )
+    ).catch((error: unknown) => this.toHttpErrorResult<SaleReturnView>(error));
   }
 
   getSalesList(filters: {

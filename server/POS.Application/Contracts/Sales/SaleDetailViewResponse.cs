@@ -46,4 +46,9 @@ public sealed class SaleDetailViewResponse
     public IReadOnlyList<SalePaymentResponse> Payments { get; init; } = Array.Empty<SalePaymentResponse>();
 
     public IReadOnlyList<FiscalDocumentResponse> FiscalDocuments { get; init; } = Array.Empty<FiscalDocumentResponse>();
+
+    /// <summary>0 = None, 1 = FullyReturned.</summary>
+    public int ReturnStatus { get; init; }
+
+    public SaleReturnResponse? Return { get; init; }
 }

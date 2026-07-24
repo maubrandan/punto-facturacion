@@ -41,6 +41,9 @@ public sealed class HardwareStockPolicy : IStockPolicy
     public Task<Result<object?>> ApplySaleAsync(StockApplyContext ctx, CancellationToken cancellationToken = default)
         => Task.FromResult(ApplySimpleOut(ctx, StockMovementType.Sale));
 
+    public Task<Result<object?>> ApplySaleReturnAsync(StockApplyContext ctx, CancellationToken cancellationToken = default)
+        => Task.FromResult(ApplySimpleIn(ctx, StockMovementType.SaleReturn));
+
     public Task<Result<object?>> ApplyPurchaseAsync(StockApplyContext ctx, CancellationToken cancellationToken = default)
         => Task.FromResult(ApplySimpleIn(ctx, StockMovementType.Purchase));
 

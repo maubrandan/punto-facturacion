@@ -33,9 +33,14 @@ public sealed class Sale : ITenantEntity
 
     public Customer? Customer { get; set; }
 
+    /// <summary>Estado de devolución comercial (v1: None o FullyReturned).</summary>
+    public SaleReturnStatus ReturnStatus { get; set; } = SaleReturnStatus.None;
+
     public ICollection<SaleDetail> Details { get; set; } = new List<SaleDetail>();
 
     public ICollection<SalePayment> Payments { get; set; } = new List<SalePayment>();
 
     public ICollection<FiscalDocument> FiscalDocuments { get; set; } = new List<FiscalDocument>();
+
+    public ICollection<SaleReturn> Returns { get; set; } = new List<SaleReturn>();
 }

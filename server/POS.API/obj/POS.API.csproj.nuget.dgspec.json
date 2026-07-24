@@ -1,17 +1,17 @@
 {
   "format": 1,
   "restore": {
-    "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj": {}
+    "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj": {}
   },
   "projects": {
-    "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj": {
+    "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+        "projectUniqueName": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
         "projectName": "POS.API",
-        "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
+        "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\POS.API.csproj",
         "packagesPath": "C:\\Users\\xc_18\\.nuget\\packages\\",
-        "outputPath": "c:\\proj\\punto-facturacion\\server\\POS.API\\obj\\",
+        "outputPath": "C:\\proj\\punto-facturacion\\server\\POS.API\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -33,14 +33,14 @@
             "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj"
               },
-              "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
               },
-              "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj"
               }
             }
           }
@@ -522,14 +522,14 @@
         }
       }
     },
-    "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
+    "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
+        "projectUniqueName": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
         "projectName": "POS.Application",
-        "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
+        "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj",
         "packagesPath": "C:\\Users\\xc_18\\.nuget\\packages\\",
-        "outputPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\obj\\",
+        "outputPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -551,8 +551,8 @@
             "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
               }
             }
           }
@@ -873,14 +873,14 @@
         }
       }
     },
-    "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
+    "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj",
+        "projectUniqueName": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj",
         "projectName": "POS.Domain",
-        "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj",
+        "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj",
         "packagesPath": "C:\\Users\\xc_18\\.nuget\\packages\\",
-        "outputPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\obj\\",
+        "outputPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1357,14 +1357,14 @@
         }
       }
     },
-    "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj": {
+    "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
+        "projectUniqueName": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
         "projectName": "POS.Infrastructure",
-        "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
+        "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\POS.Infrastructure.csproj",
         "packagesPath": "C:\\Users\\xc_18\\.nuget\\packages\\",
-        "outputPath": "c:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\obj\\",
+        "outputPath": "C:\\proj\\punto-facturacion\\server\\POS.Infrastructure\\obj\\",
         "projectStyle": "PackageReference",
         "fallbackFolders": [
           "C:\\Program Files (x86)\\Microsoft Visual Studio\\Shared\\NuGetPackages"
@@ -1386,11 +1386,11 @@
             "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {
-              "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Application\\POS.Application.csproj"
               },
-              "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
-                "projectPath": "c:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
+              "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj": {
+                "projectPath": "C:\\proj\\punto-facturacion\\server\\POS.Domain\\POS.Domain.csproj"
               }
             }
           }

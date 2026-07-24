@@ -81,6 +81,7 @@ public sealed class SalesQueryService : ISalesQueryService
                     s.TotalAmount,
                     s.CreatedByUserName,
                     s.TenantId,
+                    s.ReturnStatus,
                     Lines = s.Details
                         .Select(
                             d => new
@@ -137,6 +138,67 @@ public sealed class SalesQueryService : ISalesQueryService
             .OrderBy(d => d.CreatedAtUtc)
             .ToListAsync(cancellationToken);
 
+        SaleReturnResponse? returnSummary = null;
+        if (sale.ReturnStatus == SaleReturnStatus.FullyReturned)
+        {
+            var saleReturn = await _db.SaleReturns
+                .AsNoTracking()
+                .Where(r => r.SaleId == id)
+                .Select(
+                    r => new
+                    {
+                        r.Id,
+                        r.SaleId,
+                        r.ReturnedAt,
+                        r.TotalAmount,
+                        r.CreatedByUserName,
+                        r.CashSessionId,
+                        r.FiscalDocumentId,
+                        Lines = r.Lines
+                            .Select(
+                                l => new SaleReturnLineResponse
+                                {
+                                    Id = l.Id,
+                                    SaleDetailId = l.SaleDetailId,
+                                    ProductId = l.ProductId,
+                                    ProductName = l.ProductName,
+                                    Quantity = l.Quantity,
+                                    StockLotId = l.StockLotId,
+                                    LineNetSubtotal = l.LineNetSubtotal,
+                                    LineTaxAmount = l.LineTaxAmount
+                                })
+                            .ToList(),
+                        Payments = r.Payments
+                            .OrderBy(p => p.CreatedAt)
+                            .ThenBy(p => p.Id)
+                            .Select(
+                                p => new SalePaymentResponse
+                                {
+                                    Id = p.Id,
+                                    Method = (int)p.Method,
+                                    Amount = p.Amount
+                                })
+                            .ToList()
+                    })
+                .FirstOrDefaultAsync(cancellationToken);
+
+            if (saleReturn is not null)
+            {
+                returnSummary = new SaleReturnResponse
+                {
+                    Id = saleReturn.Id,
+                    SaleId = saleReturn.SaleId,
+                    ReturnedAt = saleReturn.ReturnedAt,
+                    TotalAmount = saleReturn.TotalAmount,
+                    CreatedByUserName = saleReturn.CreatedByUserName,
+                    CashSessionId = saleReturn.CashSessionId,
+                    FiscalDocumentId = saleReturn.FiscalDocumentId,
+                    Lines = saleReturn.Lines,
+                    Payments = saleReturn.Payments
+                };
+            }
+        }
+
         // FEFO: líneas con lote por vencimiento asc.; resto estable por producto/id.
         var orderedLines = sale.Lines
             .OrderBy(d => d.StockLotId is Guid lid && lotsById.TryGetValue(lid, out var lot)
@@ -177,8 +239,61 @@ public sealed class SalesQueryService : ISalesQueryService
             Payments = sale.Payments,
             FiscalDocuments = fiscalDocuments
                 .Select(d => FiscalDocumentMapper.ToResponse(d, profileTaxId))
-                .ToList()
+                .ToList(),
+            ReturnStatus = (int)sale.ReturnStatus,
+            Return = returnSummary
         };
+    }
+
+    public async Task<IReadOnlyList<SaleReturnResponse>> GetReturnsBySaleIdAsync(
+        Guid saleId,
+        CancellationToken cancellationToken = default)
+    {
+        var saleExists = await _db.Sales.AsNoTracking().AnyAsync(s => s.Id == saleId, cancellationToken);
+        if (!saleExists)
+            return Array.Empty<SaleReturnResponse>();
+
+        return await _db.SaleReturns
+            .AsNoTracking()
+            .Where(r => r.SaleId == saleId)
+            .OrderByDescending(r => r.ReturnedAt)
+            .Select(
+                r => new SaleReturnResponse
+                {
+                    Id = r.Id,
+                    SaleId = r.SaleId,
+                    ReturnedAt = r.ReturnedAt,
+                    TotalAmount = r.TotalAmount,
+                    CreatedByUserName = r.CreatedByUserName,
+                    CashSessionId = r.CashSessionId,
+                    FiscalDocumentId = r.FiscalDocumentId,
+                    Lines = r.Lines
+                        .Select(
+                            l => new SaleReturnLineResponse
+                            {
+                                Id = l.Id,
+                                SaleDetailId = l.SaleDetailId,
+                                ProductId = l.ProductId,
+                                ProductName = l.ProductName,
+                                Quantity = l.Quantity,
+                                StockLotId = l.StockLotId,
+                                LineNetSubtotal = l.LineNetSubtotal,
+                                LineTaxAmount = l.LineTaxAmount
+                            })
+                        .ToList(),
+                    Payments = r.Payments
+                        .OrderBy(p => p.CreatedAt)
+                        .ThenBy(p => p.Id)
+                        .Select(
+                            p => new SalePaymentResponse
+                            {
+                                Id = p.Id,
+                                Method = (int)p.Method,
+                                Amount = p.Amount
+                            })
+                        .ToList()
+                })
+            .ToListAsync(cancellationToken);
     }
 
     public async Task<DailySummaryResponse> GetDailySummaryAsync(

@@ -15,11 +15,16 @@ namespace POS.API.Controllers;
 public sealed class SalesController : ControllerBase
 {
     private readonly ICreateSaleHandler _createSaleHandler;
+    private readonly ICreateSaleReturnHandler _createSaleReturnHandler;
     private readonly ISalesQueryService _salesQuery;
 
-    public SalesController(ICreateSaleHandler createSaleHandler, ISalesQueryService salesQuery)
+    public SalesController(
+        ICreateSaleHandler createSaleHandler,
+        ICreateSaleReturnHandler createSaleReturnHandler,
+        ISalesQueryService salesQuery)
     {
         _createSaleHandler = createSaleHandler;
+        _createSaleReturnHandler = createSaleReturnHandler;
         _salesQuery = salesQuery;
     }
 
@@ -150,6 +155,31 @@ public sealed class SalesController : ControllerBase
 
         var result = await _createSaleHandler.HandleAsync(command, cancellationToken);
         var body = ApiResponse<SaleResponse>.FromResult(result);
+        if (!result.IsSuccess)
+            return BadRequest(body);
+
+        return StatusCode(StatusCodes.Status201Created, body);
+    }
+
+    [HttpGet("{saleId:guid}/returns")]
+    [ProducesResponseType(typeof(ApiResponse<IReadOnlyList<SaleReturnResponse>>), StatusCodes.Status200OK)]
+    public async Task<IActionResult> GetReturns(Guid saleId, CancellationToken cancellationToken = default)
+    {
+        var returns = await _salesQuery.GetReturnsBySaleIdAsync(saleId, cancellationToken);
+        return Ok(
+            ApiResponse<IReadOnlyList<SaleReturnResponse>>.FromResult(
+                Result<IReadOnlyList<SaleReturnResponse>>.Ok(returns)));
+    }
+
+    [HttpPost("{saleId:guid}/returns")]
+    [ProducesResponseType(typeof(ApiResponse<SaleReturnResponse>), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ApiResponse<SaleReturnResponse>), StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> CreateReturn(Guid saleId, CancellationToken cancellationToken)
+    {
+        var result = await _createSaleReturnHandler.HandleAsync(
+            new CreateSaleReturnCommand(saleId),
+            cancellationToken);
+        var body = ApiResponse<SaleReturnResponse>.FromResult(result);
         if (!result.IsSuccess)
             return BadRequest(body);
 

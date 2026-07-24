@@ -30,6 +30,7 @@ using POS.Application.TenantUsers;
 using POS.Application.TenantUsers.Validation;
 using POS.Application.Inventory;
 using POS.Application.Inventory.Validation;
+using POS.Application.Sales;
 
 namespace POS.Infrastructure;
 
@@ -64,6 +65,8 @@ public static class DependencyInjection
             options.UseSqlServer(connectionString));
 
         services.AddScoped<ICreateSaleHandler, CreateSaleHandler>();
+        services.AddScoped<ICreateSaleReturnHandler, CreateSaleReturnHandler>();
+        services.AddScoped<IValidator<CreateSaleReturnCommand>, CreateSaleReturnCommandValidator>();
         services.AddScoped<ICreatePurchaseHandler, CreatePurchaseHandler>();
         services.AddScoped<PharmacyStockPolicy>();
         services.AddScoped<HardwareStockPolicy>();

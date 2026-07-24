@@ -80,6 +80,9 @@ public interface IStockPolicy
 
     Task<Result<object?>> ApplySaleAsync(StockApplyContext ctx, CancellationToken cancellationToken = default);
 
+    /// <summary>Reposición de stock por devolución de venta (misma dirección que compra/entrada).</summary>
+    Task<Result<object?>> ApplySaleReturnAsync(StockApplyContext ctx, CancellationToken cancellationToken = default);
+
     Task<Result<object?>> ApplyPurchaseAsync(StockApplyContext ctx, CancellationToken cancellationToken = default);
 
     Task<Result<object?>> ApplyAdjustmentAsync(StockApplyContext ctx, CancellationToken cancellationToken = default);

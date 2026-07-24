@@ -1,8 +1,25 @@
 # syntax=docker/dockerfile:1
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
-COPY server/ ./server/
-RUN dotnet publish ./server/POS.API/POS.API.csproj -c Release -o /app/publish /p:UseAppHost=false
+
+# Restore layer: only project files (invalidates less often than source)
+COPY server/POSSystem.slnx ./server/
+COPY server/POS.API/POS.API.csproj ./server/POS.API/
+COPY server/POS.Application/POS.Application.csproj ./server/POS.Application/
+COPY server/POS.Domain/POS.Domain.csproj ./server/POS.Domain/
+COPY server/POS.Infrastructure/POS.Infrastructure.csproj ./server/POS.Infrastructure/
+
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet restore ./server/POS.API/POS.API.csproj
+
+# Source layer: production projects only (tests excluded via .dockerignore / selective COPY)
+COPY server/POS.API/ ./server/POS.API/
+COPY server/POS.Application/ ./server/POS.Application/
+COPY server/POS.Domain/ ./server/POS.Domain/
+COPY server/POS.Infrastructure/ ./server/POS.Infrastructure/
+
+RUN --mount=type=cache,target=/root/.nuget/packages \
+    dotnet publish ./server/POS.API/POS.API.csproj -c Release -o /app/publish /p:UseAppHost=false --no-restore
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS final
 RUN apt-get update \

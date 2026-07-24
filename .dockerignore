@@ -4,8 +4,13 @@
 **/obj
 **/node_modules
 pos-frontend/dist
-**/.vs
-**/*.user
+server/artifacts
+server/POS.API.IntegrationTests
 **/IntegrationTests
+**/.vs
+**/.idea
+**/*.user
+**/*.suo
+**/*.userosscache
 *.md
 !pos-frontend/**/*.md

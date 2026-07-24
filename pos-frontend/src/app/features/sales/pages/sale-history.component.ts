@@ -13,6 +13,7 @@ import { paymentMethodLabel } from '../../../core/models/payment.model';
 import { CustomerService } from '../../../core/services/customer.service';
 import { FiscalService } from '../../../core/services/fiscal.service';
 import type { PagedSalesResult, SaleDetailView } from '../../../core/services/sale.service';
+import { SaleService } from '../../../core/services/sale.service';
 import { SaleTicketComponent } from '../components/sale-ticket.component';
 import { firstValueFrom } from 'rxjs';
 
@@ -183,6 +184,18 @@ interface Envelope<T> {
                 <dt class="text-slate-500">Total</dt>
                 <dd class="font-semibold text-brand-400">{{ d.totalAmount | number: '1.2-2' }}</dd>
               </div>
+              @if ((d.returnStatus ?? 0) === 1) {
+                <div class="flex justify-between gap-2">
+                  <dt class="text-slate-500">Estado</dt>
+                  <dd class="font-medium text-amber-300">Devuelta</dd>
+                </div>
+                @if (d.return; as ret) {
+                  <div class="flex justify-between gap-2 text-xs">
+                    <dt class="text-slate-500">Devuelta el</dt>
+                    <dd>{{ ret.returnedAt | date: 'medium' }}</dd>
+                  </div>
+                }
+              }
               @if (d.payments.length) {
                 @for (p of d.payments; track p.id) {
                   <div class="flex justify-between gap-2 text-sm">
@@ -220,6 +233,29 @@ interface Envelope<T> {
                 </li>
               }
             </ul>
+
+            @if ((d.returnStatus ?? 0) === 0) {
+              <section class="mt-6 border-t border-slate-800 pt-4">
+                <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Devolución
+                </h3>
+                <p class="mt-2 text-xs text-slate-400">
+                  Devolución total: repone stock, revierte pagos por el mismo medio y emite NC si
+                  hay factura autorizada.
+                </p>
+                <button
+                  type="button"
+                  class="btn-secondary mt-3 w-full"
+                  [disabled]="saleService.saving() || returning()"
+                  (click)="confirmReturn(d)"
+                >
+                  {{ returning() ? 'Devolviendo…' : 'Devolver venta' }}
+                </button>
+                @if (returnError()) {
+                  <p class="mt-2 text-xs text-rose-300">{{ returnError() }}</p>
+                }
+              </section>
+            }
 
             <section class="mt-6 border-t border-slate-800 pt-4">
               <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">
@@ -351,9 +387,12 @@ export class SaleHistoryComponent implements OnInit {
   private readonly baseUrl = '/api/sales';
   readonly fiscalService = inject(FiscalService);
   private readonly customerService = inject(CustomerService);
+  readonly saleService = inject(SaleService);
 
   readonly fiscalProfileReady = signal(false);
   readonly fiscalActionError = signal<string | null>(null);
+  readonly returnError = signal<string | null>(null);
+  readonly returning = signal(false);
   readonly buyerTaxId = signal('');
   readonly selectedCustomerId = signal<string | null>(null);
   readonly customerQuery = signal('');
@@ -479,6 +518,9 @@ export class SaleHistoryComponent implements OnInit {
   }
 
   canCreditNote(fd: FiscalDocumentView, d: SaleDetailView): boolean {
+    if ((d.returnStatus ?? 0) === 1) {
+      return false;
+    }
     if (!isFiscalAuthorized(fd) || fd.documentType > 2) {
       return false;
     }
@@ -487,6 +529,28 @@ export class SaleHistoryComponent implements OnInit {
     return !docs.some(
       (x) => x.documentType === ncType && x.originalFiscalDocumentId === fd.id
     );
+  }
+
+  async confirmReturn(d: SaleDetailView): Promise<void> {
+    const ok = window.confirm(
+      '¿Confirmar devolución total?\n\nSe repondrá el stock, se revertirán los pagos por el mismo medio y se emitirá nota de crédito si hay factura autorizada.'
+    );
+    if (!ok) {
+      return;
+    }
+    this.returnError.set(null);
+    this.returning.set(true);
+    try {
+      const result = await this.saleService.createReturn(d.id);
+      if (!result.success) {
+        this.returnError.set(result.error?.message ?? 'No se pudo registrar la devolución.');
+        return;
+      }
+      this.reloadDetail();
+      this.paged.reload();
+    } finally {
+      this.returning.set(false);
+    }
   }
 
   private reloadDetail(): void {

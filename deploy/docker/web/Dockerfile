@@ -2,7 +2,7 @@
 FROM node:22-bookworm-slim AS build
 WORKDIR /app
 COPY pos-frontend/package.json pos-frontend/package-lock.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm npm ci
 COPY pos-frontend/ ./
 RUN npm run build
 

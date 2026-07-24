@@ -45,6 +45,12 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<SalePayment> SalePayments => Set<SalePayment>();
 
+    public DbSet<SaleReturn> SaleReturns => Set<SaleReturn>();
+
+    public DbSet<SaleReturnLine> SaleReturnLines => Set<SaleReturnLine>();
+
+    public DbSet<SaleReturnPayment> SaleReturnPayments => Set<SaleReturnPayment>();
+
     public DbSet<FiscalDocument> FiscalDocuments => Set<FiscalDocument>();
 
     public DbSet<TenantFiscalProfile> TenantFiscalProfiles => Set<TenantFiscalProfile>();
@@ -81,6 +87,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
         ConfigureProduct(modelBuilder);
         modelBuilder.Entity<Product>().HasQueryFilter(p => p.TenantId == _currentTenantId);
         ConfigureSale(modelBuilder);
+        ConfigureSaleReturn(modelBuilder);
         ConfigureFiscal(modelBuilder);
         ConfigureProviderAndPurchase(modelBuilder);
         ConfigureCashAndExpenses(modelBuilder);
@@ -202,6 +209,7 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasForeignKey(e => e.CustomerId)
                 .OnDelete(DeleteBehavior.Restrict);
             entity.HasIndex(e => new { e.TenantId, e.CustomerId });
+            entity.Property(e => e.ReturnStatus).HasConversion<int>();
         });
 
         modelBuilder.Entity<SaleDetail>(entity =>
@@ -242,6 +250,81 @@ public sealed class ApplicationDbContext : IdentityDbContext<ApplicationUser>
                 .HasOne(e => e.Sale)
                 .WithMany(s => s.Payments)
                 .HasForeignKey(e => e.SaleId)
+                .OnDelete(DeleteBehavior.Cascade);
+        });
+    }
+
+    private static void ConfigureSaleReturn(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<SaleReturn>(entity =>
+        {
+            entity.ToTable("SaleReturns");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.TotalAmount).HasPrecision(18, 2);
+            entity.Property(e => e.CreatedByUserId).HasMaxLength(128);
+            entity.Property(e => e.CreatedByUserName).HasMaxLength(512);
+            entity.HasIndex(e => new { e.TenantId, e.SaleId }).IsUnique();
+            entity.HasIndex(e => new { e.TenantId, e.CashSessionId });
+            entity
+                .HasOne(e => e.Sale)
+                .WithMany(s => s.Returns)
+                .HasForeignKey(e => e.SaleId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.CashSession)
+                .WithMany(s => s.SaleReturns)
+                .HasForeignKey(e => e.CashSessionId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.FiscalDocument)
+                .WithMany()
+                .HasForeignKey(e => e.FiscalDocumentId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SaleReturnLine>(entity =>
+        {
+            entity.ToTable("SaleReturnLines");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.ProductName).IsRequired().HasMaxLength(512);
+            entity.Property(e => e.ProductExtendedDataJson).HasColumnType("nvarchar(max)");
+            entity.Property(e => e.LineNetSubtotal).HasPrecision(18, 2);
+            entity.Property(e => e.LineTaxAmount).HasPrecision(18, 2);
+            entity.Property(e => e.UnitNetPrice).HasPrecision(18, 2);
+            entity.Property(e => e.TaxRate).HasPrecision(18, 4);
+            entity.Property(e => e.Quantity).HasPrecision(18, 3);
+            entity.HasIndex(e => new { e.TenantId, e.SaleReturnId });
+            entity
+                .HasOne(e => e.SaleReturn)
+                .WithMany(r => r.Lines)
+                .HasForeignKey(e => e.SaleReturnId)
+                .OnDelete(DeleteBehavior.Cascade);
+            entity
+                .HasOne(e => e.SaleDetail)
+                .WithMany()
+                .HasForeignKey(e => e.SaleDetailId)
+                .OnDelete(DeleteBehavior.Restrict);
+            entity
+                .HasOne(e => e.Product)
+                .WithMany()
+                .HasForeignKey(e => e.ProductId)
+                .OnDelete(DeleteBehavior.Restrict);
+        });
+
+        modelBuilder.Entity<SaleReturnPayment>(entity =>
+        {
+            entity.ToTable("SaleReturnPayments");
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.TenantId).IsRequired().HasMaxLength(128);
+            entity.Property(e => e.Method).HasConversion<int>();
+            entity.Property(e => e.Amount).HasPrecision(18, 2);
+            entity.HasIndex(e => new { e.TenantId, e.SaleReturnId });
+            entity
+                .HasOne(e => e.SaleReturn)
+                .WithMany(r => r.Payments)
+                .HasForeignKey(e => e.SaleReturnId)
                 .OnDelete(DeleteBehavior.Cascade);
         });
     }

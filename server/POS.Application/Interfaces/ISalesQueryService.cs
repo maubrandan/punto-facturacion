@@ -14,6 +14,10 @@ public interface ISalesQueryService
 
     Task<SaleDetailViewResponse?> GetByIdAsync(Guid id, CancellationToken cancellationToken = default);
 
+    Task<IReadOnlyList<SaleReturnResponse>> GetReturnsBySaleIdAsync(
+        Guid saleId,
+        CancellationToken cancellationToken = default);
+
     /// <param name="dateUtc">Día a consultar (solo la parte de fecha, interpretado en UTC). Si null, hoy en UTC.</param>
     Task<DailySummaryResponse> GetDailySummaryAsync(DateTime? dateUtc, CancellationToken cancellationToken = default);
 

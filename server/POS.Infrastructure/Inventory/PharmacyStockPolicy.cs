@@ -85,6 +85,46 @@ public sealed class PharmacyStockPolicy : IStockPolicy
         return await ApplySaleFefoSplitAsync(ctx, cancellationToken);
     }
 
+    public async Task<Result<object?>> ApplySaleReturnAsync(
+        StockApplyContext ctx,
+        CancellationToken cancellationToken = default)
+    {
+        if (ctx.StockLotId is null || ctx.StockLotId == Guid.Empty)
+        {
+            return Result<object?>.Failure(
+                "stock.lot_required",
+                "La devolución de farmacia requiere el lote original de la venta.");
+        }
+
+        var lot = await LoadLotAsync(ctx.Product.Id, ctx.StockLotId, cancellationToken);
+        if (lot is null)
+            return Result<object?>.Failure("stock.lot_not_found", "El lote no existe o no pertenece al producto.");
+
+        lot.Quantity += ctx.Quantity;
+        await SyncProductStockAsync(ctx.Product, cancellationToken);
+
+        ctx.AppliedStockLotId = lot.Id;
+        ctx.AppliedLotNumber = lot.LotNumber;
+        ctx.AppliedExpiration = lot.ExpirationDate;
+        ctx.AppliedAllocations.Add(
+            new StockLotAllocation(lot.Id, ctx.Quantity, lot.LotNumber, lot.ExpirationDate));
+
+        StockMovementWriter.AddMovement(
+            _db,
+            ctx.Product,
+            StockMovementType.SaleReturn,
+            ctx.Quantity,
+            lot.Id,
+            lot.LotNumber,
+            lot.ExpirationDate,
+            ctx.ReasonCode,
+            ctx.ReasonNote,
+            ctx.ReferenceId,
+            ctx.CreatedByUserId);
+
+        return Result<object?>.Ok(null);
+    }
+
     /// <summary>Override explícito: un solo lote; no reparte a otros.</summary>
     private async Task<Result<object?>> ApplySaleExplicitLotAsync(
         StockApplyContext ctx,

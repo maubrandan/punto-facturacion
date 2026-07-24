@@ -850,6 +850,9 @@ namespace POS.Infrastructure.Migrations
                     b.Property<DateTime>("Date")
                         .HasColumnType("datetime2");
 
+                    b.Property<int>("ReturnStatus")
+                        .HasColumnType("int");
+
                     b.Property<string>("TenantId")
                         .IsRequired()
                         .HasMaxLength(128)
@@ -973,6 +976,155 @@ namespace POS.Infrastructure.Migrations
                     b.HasIndex("TenantId", "SaleId");
 
                     b.ToTable("SalePayments", (string)null);
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturn", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("CashSessionId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("CreatedByUserName")
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<Guid?>("FiscalDocumentId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<DateTime>("ReturnedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<Guid>("SaleId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("TotalAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CashSessionId");
+
+                    b.HasIndex("FiscalDocumentId");
+
+                    b.HasIndex("SaleId");
+
+                    b.HasIndex("TenantId", "CashSessionId");
+
+                    b.HasIndex("TenantId", "SaleId")
+                        .IsUnique();
+
+                    b.ToTable("SaleReturns", (string)null);
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturnLine", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("LineNetSubtotal")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<decimal>("LineTaxAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<string>("ProductExtendedDataJson")
+                        .IsRequired()
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<Guid>("ProductId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("ProductName")
+                        .IsRequired()
+                        .HasMaxLength(512)
+                        .HasColumnType("nvarchar(512)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 3)
+                        .HasColumnType("decimal(18,3)");
+
+                    b.Property<Guid>("SaleDetailId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid>("SaleReturnId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<Guid?>("StockLotId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("TaxRate")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<decimal>("UnitNetPrice")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ProductId");
+
+                    b.HasIndex("SaleDetailId");
+
+                    b.HasIndex("SaleReturnId");
+
+                    b.HasIndex("TenantId", "SaleReturnId");
+
+                    b.ToTable("SaleReturnLines", (string)null);
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturnPayment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("Method")
+                        .HasColumnType("int");
+
+                    b.Property<Guid>("SaleReturnId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<string>("TenantId")
+                        .IsRequired()
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SaleReturnId");
+
+                    b.HasIndex("TenantId", "SaleReturnId");
+
+                    b.ToTable("SaleReturnPayments", (string)null);
                 });
 
             modelBuilder.Entity("POS.Domain.Entities.StockLot", b =>
@@ -1537,6 +1689,69 @@ namespace POS.Infrastructure.Migrations
                     b.Navigation("Sale");
                 });
 
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturn", b =>
+                {
+                    b.HasOne("POS.Domain.Entities.CashSession", "CashSession")
+                        .WithMany("SaleReturns")
+                        .HasForeignKey("CashSessionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POS.Domain.Entities.FiscalDocument", "FiscalDocument")
+                        .WithMany()
+                        .HasForeignKey("FiscalDocumentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("POS.Domain.Entities.Sale", "Sale")
+                        .WithMany("Returns")
+                        .HasForeignKey("SaleId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("CashSession");
+
+                    b.Navigation("FiscalDocument");
+
+                    b.Navigation("Sale");
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturnLine", b =>
+                {
+                    b.HasOne("POS.Domain.Entities.Product", "Product")
+                        .WithMany()
+                        .HasForeignKey("ProductId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POS.Domain.Entities.SaleDetail", "SaleDetail")
+                        .WithMany()
+                        .HasForeignKey("SaleDetailId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("POS.Domain.Entities.SaleReturn", "SaleReturn")
+                        .WithMany("Lines")
+                        .HasForeignKey("SaleReturnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Product");
+
+                    b.Navigation("SaleDetail");
+
+                    b.Navigation("SaleReturn");
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturnPayment", b =>
+                {
+                    b.HasOne("POS.Domain.Entities.SaleReturn", "SaleReturn")
+                        .WithMany("Payments")
+                        .HasForeignKey("SaleReturnId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("SaleReturn");
+                });
+
             modelBuilder.Entity("POS.Domain.Entities.StockLot", b =>
                 {
                     b.HasOne("POS.Domain.Entities.Product", "Product")
@@ -1599,6 +1814,8 @@ namespace POS.Infrastructure.Migrations
 
                     b.Navigation("Purchases");
 
+                    b.Navigation("SaleReturns");
+
                     b.Navigation("Sales");
                 });
 
@@ -1627,6 +1844,15 @@ namespace POS.Infrastructure.Migrations
                     b.Navigation("Details");
 
                     b.Navigation("FiscalDocuments");
+
+                    b.Navigation("Payments");
+
+                    b.Navigation("Returns");
+                });
+
+            modelBuilder.Entity("POS.Domain.Entities.SaleReturn", b =>
+                {
+                    b.Navigation("Lines");
 
                     b.Navigation("Payments");
                 });
